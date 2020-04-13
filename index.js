@@ -286,9 +286,15 @@ function operation(dlt, name, reset, conn, opts) {
       if (dlt.at.logger) {
         dlt.at.logger(`sqler-mysql: Performing ${name} on connection pool "${dlt.at.opts.id}" (uncommitted transactions: ${dlt.at.state.pending})`);
       }
-      await new Promise((resolve, reject) => {
-        conn[name](err => err ? reject(err) : resolve());
-      });
+      if (name === 'close') conn.close();
+      else {
+        await new Promise((resolve, reject) => {
+          conn[name](err => {
+            if (err) reject(err);
+            else resolve()
+          });
+        });
+      }
       if (reset) {
         if (opts && opts.transactionId) delete dlt.at.connections[opts.transactionId];
         dlt.at.state.pending = 0;
@@ -302,17 +308,7 @@ function operation(dlt, name, reset, conn, opts) {
       throw error;
     } finally {
       if (name !== 'close') {
-        try {
-          await new Promise((resolve, reject) => {
-            conn.close(err => err ? reject(err) : resolve());
-          });
-        } catch (cerr) {
-          if (error) {
-            error.sqlerMysql = {
-              closeError: cerr
-            };
-          }
-        }
+        conn.close();
       }
     }
     return dlt.at.state.pending;

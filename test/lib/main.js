@@ -54,10 +54,10 @@ class Tester {
    */
   static async after() {
     if (!priv.created) {
-      Labrat.header(`${priv.vendor}: Skipping dropping of test tables`);
+      Labrat.header(`${priv.vendor}: Skipping dropping of test tables/database`);
       return;
     }
-    Labrat.header(`${priv.vendor}: Dropping test tables (if any)`);
+    Labrat.header(`${priv.vendor}: Dropping test tables/database (if any)`);
     
     const conf = getConf();
     priv.cache = null;
@@ -66,19 +66,15 @@ class Tester {
       await priv.mgr.init();
     }
     
-    if (priv.ci) { // drop isn't really need in CI env
-      try {
-        if (priv.mgr.db[priv.vendor].setup) {
-          const deleteDB = getCrudOp('delete', priv.vendor, 'database');
-          await deleteDB(priv.mgr, priv.vendor);
-        }
-        priv.created = false;
-      } catch (err) {
-        if (LOGGER.warn) LOGGER.warn(`${priv.vendor}: Failed to delete tables (CI=${priv.ci})`, err);
+    try {
+      if (priv.mgr.db[priv.vendor].setup) {
+        const deleteDB = getCrudOp('delete', priv.vendor, 'database');
+        await deleteDB(priv.mgr, priv.vendor);
       }
-    } else {
-      await priv.mgr.db[priv.vendor].setup.delete.tables();
       priv.created = false;
+    } catch (err) {
+      if (LOGGER.warn) LOGGER.warn(`${priv.vendor}: Failed to delete tables/database${priv.ci ? ` (CI=${priv.ci})` : ''}`, err);
+      throw err;
     }
     return priv.mgr.close();
   }
@@ -184,19 +180,6 @@ class Tester {
     });
   }
 
-  static async isolationLevel() {
-    const date = datify();
-    return priv.mgr.db[priv.vendor].create.table.rows({
-      binds: {
-        id: 10000, name: 'Isolation Level Test', created: date, updated: date,
-        id2: 10000, name2: 'Isolation Level Test', report2: Buffer.from('TEST REPORT'), created2: date, updated2: date
-      },
-      driverOptions: {
-        isolationLevel: '${SQL_TXN_READ_UNCOMMITTED}'
-      }
-    });
-  }
-
   //====================== Configurations ======================
 
   static async initThrow() {
@@ -210,13 +193,6 @@ class Tester {
 
   static async noDriverOptionsThrow() {
     const conf = getConf({ driverOptions: null });
-    const mgr = new Manager(conf, priv.cache, priv.mgrLogit);
-    await mgr.init();
-    return mgr.close();
-  }
-
-  static async noDriverOptionsConnThrow() {
-    const conf = getConf({ driverOptions: {} });
     const mgr = new Manager(conf, priv.cache, priv.mgrLogit);
     await mgr.init();
     return mgr.close();
@@ -319,6 +295,7 @@ function getConf(overrides) {
     conf.univ = priv.univ;
     conf.mainPath = 'test';
     conf.db.dialects.mysql = './test/dialects/test-dialect.js';
+    //conf.univ.db.mysql.host = Os.hostname();
   }
   if (overrides) {
     const confCopy = JSON.parse(JSON.stringify(conf));

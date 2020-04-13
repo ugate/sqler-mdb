@@ -12,6 +12,9 @@
         "dialect": "mysql",
         "pool": {},
         "driverOptions": {
+          "connection": {
+            "multipleStatements": true
+          }
         }
       }
     ]

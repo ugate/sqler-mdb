@@ -31,9 +31,8 @@ lab.experiment(plan, () => {
   if (Tester.beforeEach) lab.beforeEach(Tester.beforeEach);
   if (Tester.afterEach) lab.afterEach(Tester.afterEach);
 
-  lab.test(`${plan}: Connection failure`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'init throw' }, Tester.initThrow));
+  lab.test(`${plan}: Connection failure`, Labrat.expectFailure('onUncaughtException', { expect, label: 'init throw' }, Tester.initThrow));
   lab.test(`${plan}: Missing driver options`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'no driver options throw' }, Tester.noDriverOptionsThrow));
-  lab.test(`${plan}: Missing driver options connection`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'no driver options connection throw' }, Tester.noDriverOptionsConnThrow));
   lab.test(`${plan}: No driver options pool`, { timeout: TEST_TKO }, Tester.noDriverOptionsPool);
   lab.test(`${plan}: No pool`, { timeout: TEST_TKO }, Tester.noPool);
   lab.test(`${plan}: Invalid driver options connection object`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'driver options connection object throw' }, Tester.invalidDriverOptionsConnObjThrow));
@@ -45,5 +44,4 @@ lab.experiment(plan, () => {
   lab.test(`${plan}: CRUD`, { timeout: TEST_TKO }, Tester.crud);
   lab.test(`${plan}: Invalid SQL`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'invalid SQL throw' }, Tester.invalidSqlThrow));
   lab.test(`${plan}: Invalid bind parameter`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'invalid bind param throw' }, Tester.invalidBindThrow));
-  lab.test(`${plan}: Create with isolation level`, { timeout: TEST_TKO }, Tester.isolationLevel);
 });
