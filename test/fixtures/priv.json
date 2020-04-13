@@ -1,0 +1,10 @@
+{
+  "univ": {
+    "db": {
+      "mysql": {
+        "username":"root",
+        "password": "my3qllocal"
+      }
+    }
+  }
+}

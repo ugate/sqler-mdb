@@ -1,0 +1,40 @@
+# When a tagged commit is pushed the documentation pages and npm module are published/deployed:
+os: linux
+# linux dist that includes C++ compiler needed for native node modules
+dist: bionic
+# npm version patch -m "%s Release"
+language: node_js
+node_js:
+  - "lts/*"
+#services:
+#  - mysql
+#  - postgresql
+env:
+  - REPO_VER=v1.2.0 MYSQL_MAJOR=8 MYSQL_MINOR=14 MYSQL_PATCH=1
+before_install:
+  - wget -O install-mysql.sh https://raw.githubusercontent.com/ugate/repo/$REPO_VER/mysql/install.sh
+  - bash ./install-mysql.sh
+  - rm -rf install-mysql.sh
+branches:
+  only:
+    - master
+    - "/v*/"
+script:
+# - printenv
+  - "npm test"
+deploy:
+  #edge: true # avoid dpl v2 missing api_token
+  - provider: script
+    skip_cleanup: true
+    script: npm run jsdocp-deploy
+    on:
+      tags: true # only on tagging commit
+      branch:
+        - /v(\d+\.)?(\d+\.)?(\*|\d+)$/
+  - provider: npm
+    email: "ugate.public@gmail.com"
+    api_token: $NPM_TOKEN  # Set in the settings page of your repository, as a secure variable
+    on:
+      tags: true # only on tagging commit
+      branch:
+        - /v(\d+\.)?(\d+\.)?(\*|\d+)$/

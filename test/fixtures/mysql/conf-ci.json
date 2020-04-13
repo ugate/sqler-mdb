@@ -1,0 +1,19 @@
+{
+  "db": {
+    "dialects": {
+      "mysql": "sqler-mysql"
+    },
+    "connections": [
+      {
+        "id": "mysql",
+        "name": "mysql",
+        "dir": "db/mysql",
+        "service": "MySQL",
+        "dialect": "mysql",
+        "pool": {},
+        "driverOptions": {
+        }
+      }
+    ]
+  }
+}
