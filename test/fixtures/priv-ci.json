@@ -1,7 +1,7 @@
 {
   "univ": {
     "db": {
-      "mysql": {
+      "mdb": {
         "username": "travis"
       }
     }

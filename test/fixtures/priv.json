@@ -1,7 +1,7 @@
 {
   "univ": {
     "db": {
-      "mysql": {
+      "mdb": {
         "host": "localhost",
         "username":"admin",
         "password": "my3qllocal"

@@ -1,15 +1,15 @@
 {
   "db": {
     "dialects": {
-      "mysql": "sqler-mysql"
+      "mdb": "sqler-mdb"
     },
     "connections": [
       {
-        "id": "mysql",
-        "name": "mysql",
-        "dir": "db/mysql",
+        "id": "mdb",
+        "name": "mdb",
+        "dir": "db/mdb",
         "service": "MySQL",
-        "dialect": "mysql",
+        "dialect": "mdb",
         "pool": {
           "timeout": 2000
         },

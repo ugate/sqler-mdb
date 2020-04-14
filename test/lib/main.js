@@ -18,7 +18,7 @@ const priv = {
   cache: null,
   rowCount: 2,
   mgrLogit: !!LOGGER.info,
-  vendor: 'mysql',
+  vendor: 'mdb',
   conf: {}
 };
 
@@ -291,11 +291,11 @@ function getConf(overrides) {
     }
     conf.univ = priv.univ;
     conf.mainPath = 'test';
-    conf.db.dialects.mysql = './test/dialects/test-dialect.js';
-    if (!conf.univ.db.mysql.host || conf.univ.db.mysql.host === 'localhost' || conf.univ.db.mysql.host === '127.0.0.1') {
-      //if (!conf.univ.db.mysql.host) conf.univ.db.mysql.host = Os.hostname();
+    conf.db.dialects.mdb = './test/dialects/test-dialect.js';
+    if (!conf.univ.db.mdb.host || conf.univ.db.mdb.host === 'localhost' || conf.univ.db.mdb.host === '127.0.0.1') {
+      //if (!conf.univ.db.mdb.host) conf.univ.db.mdb.host = Os.hostname();
       // NOTE : For simplicity, tests for localhost require a user to be setup w/o a password
-      delete conf.univ.db.mysql.password;
+      delete conf.univ.db.mdb.password;
     }
   }
   if (overrides) {

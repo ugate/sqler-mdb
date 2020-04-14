@@ -1,7 +1,7 @@
 {
-  "name": "sqler-mysql",
+  "name": "sqler-mdb",
   "version": "0.0.0",
-  "description": "@ugate/sqler dialect for MySQL",
+  "description": "@ugate/sqler dialect for MariaDB and/or MySQL",
   "main": "index.js",
   "engines": {
     "node": ">=12"
@@ -15,20 +15,21 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ugate/sqler-mysql.git"
+    "url": "git+https://github.com/ugate/sqler-mdb.git"
   },
   "keywords": [
     "sqler",
     "sql",
     "MySQL",
+    "MariaDB",
     "database"
   ],
   "author": "ugate",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/ugate/sqler-mysql/issues"
+    "url": "https://github.com/ugate/sqler-mdb/issues"
   },
-  "homepage": "https://github.com/ugate/sqler-mysql#readme",
+  "homepage": "https://ugate.github.io/sqler-mdb",
   "devDependencies": {
     "@hapi/code": "^8.0.1",
     "@hapi/lab": "^22.0.4",

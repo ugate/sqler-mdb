@@ -1,11 +1,11 @@
 // assuming "conf" contains combined "univ" and "db" objects from above
 
-// create/initialize ODBC manager
+// create/initialize manager
 const manager = new Manager(conf);
 await manager.init();
 
 // see subsequent examples for different examples
-const result = await runExample(manager, 'mssql');
+const result = await runExample(manager, 'mdb');
 
 console.log('Result:', result);
 

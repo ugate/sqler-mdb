@@ -1,18 +1,18 @@
 ### ⚙️ Setup &amp; Configuration <sub id="conf"></sub>:
 
-> __Most of documentation pertaining to general configuration for `sqler-mysql` can be found in the [`sqler` manual](https://ugate.github.io/sqler).__
+> __Most of documentation pertaining to general configuration for `sqler-mdb` can be found in the [`sqler` manual](https://ugate.github.io/sqler).__
 
-The following modules versions are required when using `sqler-mysql`:
-```jsdocp ./package.json @~ devDependencies.sqler @~ devDependencies.mysql2
+The following modules versions are required when using `sqler-mdb`:
+```jsdocp ./package.json @~ devDependencies.sqler @~ devDependencies.mariadb
 ```
 
 Install the required modules:
 ```sh
 npm install sqler
-npm install sqler-mysql
+npm install sqler-mariadb
 npm install mysql2
 ```
 
 Connection and execution option extensions can be found under the API docs for [globals](global.html).
 
-### 💡 [MySQL Usage](tutorial-2-mysql.html)
+### 💡 [MariaDB and/or MySQL Usage](tutorial-2-mdb.html)

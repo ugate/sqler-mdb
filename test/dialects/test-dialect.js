@@ -29,7 +29,7 @@ module.exports = class MySQLTestDialect extends MySQLDialect {
     expect(connConf.dir, 'connConf.dir.length').to.not.be.empty();
     expect(connConf.service, 'connConf.service').to.be.string();
     expect(connConf.service, 'connConf.service.length').to.not.be.empty();
-    expect(connConf.dialect, 'connConf.dialect === mysql').to.equal('mysql');
+    expect(connConf.dialect, 'connConf.dialect === mysql').to.equal('mdb');
 
     expectDriverOptions(connConf, this);
 

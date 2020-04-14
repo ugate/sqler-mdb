@@ -1,16 +1,16 @@
 <b class="jsdocp-remove-me">
 
-# ![](https://raw.githubusercontent.com/ugate/sqler-mysql/master/jsdocp/static/favicon-32x32.png) `sqler-mysql`
+# ![](https://raw.githubusercontent.com/ugate/sqler-mdb/master/jsdocp/static/favicon-32x32.png) `sqler-mdb`
 
-[![npm version](https://badgen.net/npm/v/sqler-mysql?color=orange&icon=npm)](https://www.npmjs.com/package/sqler-mysql)
-[![Build Status](https://badgen.net/travis/ugate/sqler-mysql?icon=travis)](https://travis-ci.com/ugate/sqler-mysql)
-[![Dependency Status](https://badgen.net/david/dep/ugate/sqler-mysql)](https://david-dm.org/ugate/sqler-mysql)
-[![Dev Dependency Status](https://badgen.net/david/dev/ugate/sqler-mysql)](https://david-dm.org/ugate/sqler-mysql?type=dev)
+[![npm version](https://badgen.net/npm/v/sqler-mdb?color=orange&icon=npm)](https://www.npmjs.com/package/sqler-mdb)
+[![Build Status](https://badgen.net/travis/ugate/sqler-mdb?icon=travis)](https://travis-ci.com/ugate/sqler-mdb)
+[![Dependency Status](https://badgen.net/david/dep/ugate/sqler-mdb)](https://david-dm.org/ugate/sqler-mdb)
+[![Dev Dependency Status](https://badgen.net/david/dev/ugate/sqler-mdb)](https://david-dm.org/ugate/sqler-mdb?type=dev)
 
 </b>
 
-[MySQL](https://www.npmjs.com/package/mysql) dialect for [`sqler`](https://github.com/ugate/sqler).
+[MariaDB and/or MySQL](https://www.npmjs.com/package/mariadb) dialect for [`sqler`](https://github.com/ugate/sqler).
 
-- [Getting Started (w/compatibility matrix)](https://ugate.github.io/sqler-mysql/tutorial-1-manual.html)
-- [Usage](https://ugate.github.io/sqler-mysql/tutorial-2-mysql)
-- [API Docs](https://ugate.github.io/sqler-mysql/module.exports.html)
+- [Getting Started (w/compatibility matrix)](https://ugate.github.io/sqler-mdb/tutorial-1-manual.html)
+- [Usage](https://ugate.github.io/sqler-mdb/tutorial-2-mdb)
+- [API Docs](https://ugate.github.io/sqler-mdb/module.exports.html)
