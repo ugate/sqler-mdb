@@ -144,9 +144,6 @@ class Tester {
     rslts[++rslti] = await read(priv.mgr, priv.vendor);
     crudly(rslts[rslti], 'read', 'TABLE');
 
-    // TODO : MySQL returns invalid characters for DATETIME(3) or TIMESTAMP(3), so milliseconds are truncated, wait 1 sec so tests will pass
-    if (priv.vendor === 'mysql') await Labrat.wait(1000);
-
     const update = getCrudOp('update', priv.vendor);
     rslts[++rslti] = await update(priv.mgr, priv.vendor);
     crudly(rslts[rslti], 'update');
@@ -295,7 +292,11 @@ function getConf(overrides) {
     conf.univ = priv.univ;
     conf.mainPath = 'test';
     conf.db.dialects.mysql = './test/dialects/test-dialect.js';
-    //conf.univ.db.mysql.host = Os.hostname();
+    if (!conf.univ.db.mysql.host || conf.univ.db.mysql.host === 'localhost' || conf.univ.db.mysql.host === '127.0.0.1') {
+      //if (!conf.univ.db.mysql.host) conf.univ.db.mysql.host = Os.hostname();
+      // NOTE : For simplicity, tests for localhost require a user to be setup w/o a password
+      delete conf.univ.db.mysql.password;
+    }
   }
   if (overrides) {
     const confCopy = JSON.parse(JSON.stringify(conf));

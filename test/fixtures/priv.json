@@ -2,7 +2,8 @@
   "univ": {
     "db": {
       "mysql": {
-        "username":"root",
+        "host": "localhost",
+        "username":"admin",
         "password": "my3qllocal"
       }
     }

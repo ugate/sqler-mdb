@@ -31,7 +31,7 @@ lab.experiment(plan, () => {
   if (Tester.beforeEach) lab.beforeEach(Tester.beforeEach);
   if (Tester.afterEach) lab.afterEach(Tester.afterEach);
 
-  lab.test(`${plan}: Connection failure`, Labrat.expectFailure('onUncaughtException', { expect, label: 'init throw' }, Tester.initThrow));
+  lab.test(`${plan}: Connection failure`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'init throw' }, Tester.initThrow));
   lab.test(`${plan}: Missing driver options`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'no driver options throw' }, Tester.noDriverOptionsThrow));
   lab.test(`${plan}: No driver options pool`, { timeout: TEST_TKO }, Tester.noDriverOptionsPool);
   lab.test(`${plan}: No pool`, { timeout: TEST_TKO }, Tester.noPool);

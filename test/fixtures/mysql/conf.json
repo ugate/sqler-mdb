@@ -10,7 +10,9 @@
         "dir": "db/mysql",
         "service": "MySQL",
         "dialect": "mysql",
-        "pool": {},
+        "pool": {
+          "timeout": 2000
+        },
         "driverOptions": {
           "connection": {
             "multipleStatements": true
