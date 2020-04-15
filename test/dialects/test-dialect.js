@@ -1,12 +1,12 @@
 'use strict';
 
-const MySQLDialect = require('../../index');
+const MDBDialect = require('../../index');
 const { expect } = require('@hapi/code');
 
 /**
-* Test MySQL database {@link Dialect}
+* Test MariaDB + MySQL database {@link Dialect}
 */
-module.exports = class MySQLTestDialect extends MySQLDialect {
+module.exports = class MDBTestDialect extends MDBDialect {
 
   /**
    * @inheritdoc
@@ -29,7 +29,7 @@ module.exports = class MySQLTestDialect extends MySQLDialect {
     expect(connConf.dir, 'connConf.dir.length').to.not.be.empty();
     expect(connConf.service, 'connConf.service').to.be.string();
     expect(connConf.service, 'connConf.service.length').to.not.be.empty();
-    expect(connConf.dialect, 'connConf.dialect === mysql').to.equal('mdb');
+    expect(connConf.dialect, 'connConf.dialect === mdb').to.equal('mdb');
 
     expectDriverOptions(connConf, this);
 
@@ -75,9 +75,9 @@ module.exports = class MySQLTestDialect extends MySQLDialect {
 };
 
 /**
- * Expects the MySQL driver options (when present)
+ * Expects the MariaDB + MySQL driver options (when present)
  * @param {Manager~ConnectionOptions} opts The connection options to check
- * @param {MySQLTestDialect} dlt The test dialect
+ * @param {MDBTestDialect} dlt The test dialect
  */
 function expectDriverOptions(opts, dlt) {
   expect(dlt.driver, `${dlt.constructor.name} driver`).to.be.object();

@@ -1,4 +1,4 @@
-### 💡 [MariaDB](https://mariadb.org) and/or [MySQL](https://www.mdb.com) Examples:
+### 💡 [MariaDB](https://mariadb.org) and/or [MySQL](https://www.mysql.com) Examples:
 
 #### Examples:<sub id="examples"></sub>
 

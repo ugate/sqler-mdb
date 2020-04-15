@@ -16,7 +16,7 @@ exports.lab = lab;
 // TODO : export * as lab from lab;
 
 const TEST_TKO = 3000;
-const TEST_LONG_TKO = 7000;
+const TEST_LONG_TKO = 10000;
 const plan = `MySQL DB Manager`;
 
 // node test/lib/main.js someTestFunction -NODE_ENV=test
@@ -31,17 +31,19 @@ lab.experiment(plan, () => {
   if (Tester.beforeEach) lab.beforeEach(Tester.beforeEach);
   if (Tester.afterEach) lab.afterEach(Tester.afterEach);
 
-  lab.test(`${plan}: Connection failure`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'init throw' }, Tester.initThrow));
-  lab.test(`${plan}: Missing driver options`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'no driver options throw' }, Tester.noDriverOptionsThrow));
-  lab.test(`${plan}: No driver options pool`, { timeout: TEST_TKO }, Tester.noDriverOptionsPool);
-  lab.test(`${plan}: No pool`, { timeout: TEST_TKO }, Tester.noPool);
-  lab.test(`${plan}: Invalid driver options connection object`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'driver options connection object throw' }, Tester.invalidDriverOptionsConnObjThrow));
-  lab.test(`${plan}: Invalid driver options connection private object`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'driver options connection private object throw' }, Tester.invalidDriverOptionsConnPrivObjThrow));
-  lab.test(`${plan}: Invalid driver options connection reference`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'driver options connection reference throw' }, Tester.invalidDriverOptionsConnRefThrow));
+  lab.test(`${plan}: Connection Failure`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'init throw' }, Tester.initThrow));
+  lab.test(`${plan}: No Pool`, { timeout: TEST_TKO }, Tester.poolNone);
+  lab.test(`${plan}: Pool Property Defaults`, { timeout: TEST_TKO }, Tester.poolPropSwap);
+  lab.test(`${plan}: Missing Driver Options`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'no driver options throw' }, Tester.driverOptionsNoneThrow));
+  lab.test(`${plan}: Driver Options No Pool/Connection`, { timeout: TEST_TKO }, Tester.driverOptionsPoolConnNone);
+  lab.test(`${plan}: Driver Options Pool or Connection`, { timeout: TEST_TKO }, Tester.driverOptionsPoolConnSwap);
+  lab.test(`${plan}: Driver Options Named or Unnamed Placeholders`, { timeout: TEST_TKO }, Tester.driverOptionsNamedPlaceholdersSwap);
+  lab.test(`${plan}: Host and Port Defaults`, { timeout: TEST_TKO }, Tester.hostPortSwap);
   lab.test(`${plan}: Multiple connections`, { timeout: TEST_TKO }, Tester.multipleConnections);
   lab.test(`${plan}: Close before init`, { timeout: TEST_TKO }, Tester.closeBeforeInit);
 
   lab.test(`${plan}: CRUD`, { timeout: TEST_TKO }, Tester.crud);
-  lab.test(`${plan}: Invalid SQL`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'invalid SQL throw' }, Tester.invalidSqlThrow));
-  lab.test(`${plan}: Invalid bind parameter`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'invalid bind param throw' }, Tester.invalidBindThrow));
+  lab.test(`${plan}: Execution Driver Options (Alternatives)`, { timeout: TEST_TKO }, Tester.execDriverOptionsAlt);
+  lab.test(`${plan}: Invalid SQL`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'invalid SQL throw' }, Tester.sqlInvalidThrow));
+  lab.test(`${plan}: Invalid bind parameter`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'invalid bind param throw' }, Tester.bindsInvalidThrow));
 });

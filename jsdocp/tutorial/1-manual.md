@@ -2,7 +2,7 @@
 
 > __Most of documentation pertaining to general configuration for `sqler-mdb` can be found in the [`sqler` manual](https://ugate.github.io/sqler).__
 
-The following modules versions are required when using `sqler-mdb`:
+The following modules versions are required when using `sqler-mdb` for [MariaDB](https://mariadb.org) and/or [MySQL](https://www.mysql.com):
 ```jsdocp ./package.json @~ devDependencies.sqler @~ devDependencies.mariadb
 ```
 

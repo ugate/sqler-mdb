@@ -10,9 +10,7 @@
         "dir": "db/mdb",
         "service": "MySQL",
         "dialect": "mdb",
-        "pool": {
-          "timeout": 2000
-        },
+        "pool": {},
         "driverOptions": {
           "connection": {
             "multipleStatements": true

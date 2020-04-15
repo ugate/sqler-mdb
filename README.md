@@ -9,7 +9,7 @@
 
 </b>
 
-[MariaDB and/or MySQL](https://www.npmjs.com/package/mariadb) dialect for [`sqler`](https://github.com/ugate/sqler).
+[MariaDB](https://www.npmjs.com/package/mariadb) and/or [MySQL](https://www.mysql.com) dialect for [`sqler`](https://github.com/ugate/sqler).
 
 - [Getting Started (w/compatibility matrix)](https://ugate.github.io/sqler-mdb/tutorial-1-manual.html)
 - [Usage](https://ugate.github.io/sqler-mdb/tutorial-2-mdb)

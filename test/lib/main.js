@@ -163,11 +163,31 @@ class Tester {
     return rslts;
   }
 
-  static async invalidSqlThrow() {
+  static async execDriverOptionsAlt() {
+    const reader = priv.mgr.db[priv.vendor].read.table.rows({
+      binds: { name: 'table' },
+      driverOptions: {
+        exec: {
+          namedPlaceholders: false
+        }
+      }
+    });
+    const deleter = priv.mgr.db[priv.vendor].delete.table.rows({
+      binds: { id: 500, id2: 500 },
+      driverOptions: {
+        exec: {
+          namedPlaceholders: false
+        }
+      }
+    });
+    return Promise.all([reader, deleter]);
+  }
+
+  static async sqlInvalidThrow() {
     return priv.mgr.db[priv.vendor].error.update.non.exist({}, ['error']);
   }
 
-  static async invalidBindThrow() {
+  static async bindsInvalidThrow() {
     const date = datify();
     return priv.mgr.db[priv.vendor].create.table.rows({
       binds: {
@@ -188,18 +208,57 @@ class Tester {
     return mgr.close();
   }
 
-  static async noDriverOptionsThrow() {
+  static async poolNone() {
+    const conf = getConf({ pool: null, connection: null });
+    const mgr = new Manager(conf, priv.cache, priv.mgrLogit || generateTestAbyssLogger);
+    await mgr.init();
+    return mgr.close();
+  }
+
+  static async poolPropSwap() {
+    const conf = getConf({
+      pool: (prop, conn) => {
+        conn[prop] = conn[prop] || {};
+        if (conn[prop].hasOwnProperty('max')) {
+          delete conn[prop].max;
+        } else {
+          conn[prop].max = 10;
+        }
+        if (conn[prop].hasOwnProperty('min')) {
+          delete conn[prop].min;
+        } else {
+          conn[prop].min = conn[prop].hasOwnProperty('max') ? conn[prop].max : 10;
+        }
+        if (conn[prop].hasOwnProperty('idle')) {
+          delete conn[prop].idle;
+        } else {
+          conn[prop].idle = 1800;
+        }
+        if (conn[prop].hasOwnProperty('timeout')) {
+          delete conn[prop].timeout;
+        } else {
+          conn[prop].timeout = 10000;
+        }
+      }
+    });
+    const mgr = new Manager(conf, priv.cache, priv.mgrLogit);
+    await mgr.init();
+    return mgr.close();
+  }
+
+  static async driverOptionsNoneThrow() {
     const conf = getConf({ driverOptions: null });
     const mgr = new Manager(conf, priv.cache, priv.mgrLogit);
     await mgr.init();
     return mgr.close();
   }
 
-  static async noDriverOptionsPool() {
+  static async driverOptionsPoolConnNone() {
     const conf = getConf({
       driverOptions: (prop, conn) => {
         conn[prop] = conn[prop] || {};
-        delete conn[prop].pool;
+        conn[prop].pool = null;
+        conn[prop].connection = null;
       }
     });
     const mgr = new Manager(conf, priv.cache, priv.mgrLogit);
@@ -207,49 +266,53 @@ class Tester {
     return mgr.close();
   }
 
-  static async noPool() {
+  static async driverOptionsPoolConnSwap() {
+    const conf = getConf({
+      driverOptions: (prop, conn) => {
+        conn[prop] = conn[prop] || {};
+        if (conn[prop].pool && !conn[prop].connection) {
+          conn[prop].connection = conn[prop].pool;
+          conn[prop].pool = null;
+        } else if (!conn[prop].pool && conn[prop].connection) {
+          conn[prop].pool = conn[prop].connection;
+          conn[prop].connection = null;
+        } else {
+          conn[prop].pool = {};
+          conn[prop].connection = {};
+        }
+      }
+    });
+    const mgr = new Manager(conf, priv.cache, priv.mgrLogit);
+    await mgr.init();
+    return mgr.close();
+  }
+
+  static async driverOptionsNamedPlaceholdersSwap() {
+    const conf = getConf({
+      driverOptions: (prop, conn) => {
+        conn[prop] = conn[prop] || {};
+        const cont = conn[prop].pool || conn[prop].connection || {};
+        cont.namedPlaceholders = !cont.namedPlaceholders;
+      }
+    });
+    const mgr = new Manager(conf, priv.cache, priv.mgrLogit);
+    await mgr.init();
+    return mgr.close();
+  }
+
+  static async hostPortSwap() {
+    // need to set a conf override to prevent overwritting of privateConf properties for other tests
     const conf = getConf({ pool: null });
-    const mgr = new Manager(conf, priv.cache, priv.mgrLogit || generateTestAbyssLogger);
-    await mgr.init();
-    return mgr.close();
-  }
-
-  static async invalidDriverOptionsConnObjThrow() {
-    const conf = getConf({
-      driverOptions: (prop, conn) => {
-        conn.bad = {};
-        conn[prop] = conn[prop] || {};
-        conn[prop].connection = conn[prop].connection || {};
-        conn[prop].connection.object = '${bad}';
-      }
-    });
-    const mgr = new Manager(conf, priv.cache, priv.mgrLogit);
-    await mgr.init();
-    return mgr.close();
-  }
-
-  static async invalidDriverOptionsConnPrivObjThrow() {
-    const conf = getConf({
-      driverOptions: (prop, conn) => {
-        conn[prop] = conn[prop] || {};
-        conn[prop].connection = conn[prop].connection || {};
-        conn[prop].connection.object = '${bad}';
-      }
-    });
-    conf.univ.db[priv.vendor].bad = {};
-    const mgr = new Manager(conf, priv.cache, priv.mgrLogit);
-    await mgr.init();
-    return mgr.close();
-  }
-
-  static async invalidDriverOptionsConnRefThrow() {
-    const conf = getConf({
-      driverOptions: (prop, conn) => {
-        conn[prop] = conn[prop] || {};
-        conn[prop].connection = conn[prop].connection || {};
-        conn[prop].connection.missing = '${nonExistentProperty}';
-      }
-    });
+    if (conf.univ.db[priv.vendor].host) {
+      delete conf.univ.db[priv.vendor].host;
+    } else {
+      conf.univ.db[priv.vendor].host = "localhost";
+    }
+    if (conf.univ.db[priv.vendor].hasOwnProperty('port')) {
+      delete conf.univ.db[priv.vendor].port;
+    } else {
+      conf.univ.db[priv.vendor].port = 3306;
+    }
     const mgr = new Manager(conf, priv.cache, priv.mgrLogit);
     await mgr.init();
     return mgr.close();

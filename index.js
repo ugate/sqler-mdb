@@ -13,7 +13,7 @@
  * In contrast to `privOpts.username = 'someUsername' and `driverOptions.connection.user = '${username}'` would be interpolated into
  * `driverOptions.connection.user = 'someUsername'`.
  * Interpoaltions can also contain more than one reference. For example, `driverOptions.connection.someProp = '${protocol}:${host}'` for 
- * `privOpts = { protocol: 'TCP', host: 'example.com' }` would become `someProp=TCP:example.com`.
+ * `privOpts = { protocol: 'TCP', host: 'example.com' }` would become `someProp='TCP:example.com'`.
  * @property {Object} [driverOptions.pool] The pool `conf` options that will be passed into `mariadb.createPool(conf)`. See the `mariadb` module for a full
  * listing of avialable connection pooling options.
  * __Using any of the generic `pool.someOption` will override the `conf` options set on `driverOptions.pool`__ (e.g. `pool.max = 10` would override 
@@ -62,7 +62,7 @@ module.exports = class MDBDialect {
     dlt.at.connections = {};
     dlt.at.opts = {
       autoCommit: true, // default autoCommit = true to conform to sqler
-      id: `sqlerMGen${Math.floor(Math.random() * 10000)}`,
+      id: `sqlerMDBGen${Math.floor(Math.random() * 10000)}`,
       connection: connConf.driverOptions.connection ? dlt.at.track.interpolate({}, connConf.driverOptions.connection, dlt.at.driver) : {}
     };
     // merge connection options into pool options
@@ -84,16 +84,20 @@ module.exports = class MDBDialect {
     dlt.at.debug = debug;
 
     if (priv.host) dlt.at.opts.pool.host = priv.host;
-    if (priv.port) dlt.at.opts.pool.port = priv.port;
+    if (priv.hasOwnProperty('port')) dlt.at.opts.pool.port = priv.port;
     dlt.at.opts.pool.user = priv.username;
     dlt.at.opts.pool.password = priv.password;
 
-    dlt.at.opts.pool.minimumIdle = connConf.pool ? connConf.pool.min : null;
-    dlt.at.opts.pool.connectionLimit = connConf.pool ? connConf.pool.max : null;
-    dlt.at.opts.pool.idleTimeout = connConf.pool ? connConf.pool.idle : null;
-    // dlt.at.opts.pool.incrementSize = connConf.pool ? connConf.pool.increment : null; // not supported
-    dlt.at.opts.pool.acquireTimeout = connConf.pool ? connConf.pool.timeout : null;
-    dlt.at.opts.pool.connectTimeout = connConf.pool ? connConf.pool.timeout : null;
+    if (connConf.pool) {
+      if (connConf.pool.hasOwnProperty('min')) dlt.at.opts.pool.minimumIdle = connConf.pool.min;
+      if (connConf.pool.hasOwnProperty('max')) dlt.at.opts.pool.connectionLimit = connConf.pool.max;
+      if (connConf.pool.hasOwnProperty('idle')) dlt.at.opts.pool.idleTimeout = connConf.pool.idle;
+      // if (connConf.pool.hasOwnProperty('increment')) dlt.at.opts.pool.incrementSize = connConf.pool.increment; // not supported
+      if (connConf.pool.hasOwnProperty('timeout')) {
+        dlt.at.opts.pool.acquireTimeout = connConf.pool.timeout;
+        dlt.at.opts.pool.connectTimeout = connConf.pool.timeout;
+      }
+    }
   }
 
   /**
@@ -103,6 +107,7 @@ module.exports = class MDBDialect {
    */
   async init(opts) {
     const dlt = internal(this), numSql = opts.numOfPreparedStmts;
+    let conn;
     try {
       dlt.at.pool = dlt.at.driver.createPool(dlt.at.opts.pool);
       if (dlt.at.logger) {
@@ -110,8 +115,17 @@ module.exports = class MDBDialect {
           `acquireTimeout=${dlt.at.opts.pool.acquireTimeout} minimumIdle=${dlt.at.opts.pool.minimumIdle} ` +
           `connectionLimit=${dlt.at.opts.pool.connectionLimit} idleTimeout=${dlt.at.opts.pool.idleTimeout}`);
       }
+      conn = await dlt.at.pool.getConnection();
+      await conn.ping();
       return dlt.at.pool;
     } catch (err) {
+      if (conn) {
+        try {
+          await conn.close();
+        } catch (cerr) {
+          err.closeError = cerr;
+        }
+      }
       const msg = `sqler-mdb: connection pool "${dlt.at.opts.id}" could not be created`;
       if (dlt.at.errorLogger) dlt.at.errorLogger(`${msg} (passwords are omitted from error) ${JSON.stringify(err, null, ' ')}`);
       const pconf = Object.assign({}, dlt.at.opts.pool);
