@@ -203,6 +203,7 @@ class Tester {
     // need to set a conf override to prevent overwritting of privateConf.username
     const conf = getConf({ pool: null });
     conf.univ.db[priv.vendor].username = 'invalid';
+    conf.univ.db[priv.vendor].password = 'invalid';
     const mgr = new Manager(conf, priv.cache, priv.mgrLogit || generateTestAbyssLogger);
     await mgr.init();
     return mgr.close();
