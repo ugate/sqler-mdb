@@ -39,7 +39,7 @@
     "mariadb": ">=2.3.1",
     "minami": "^1.2.3",
     "moment-db": "^2.0.0",
-    "sqler": ">=5.7.0"
+    "sqler": "^5.8.0"
   },
   "files": [
     "/index.js",

@@ -157,10 +157,11 @@ module.exports = class MDBDialect {
    * @param {String} sql the SQL to execute
    * @param {MDBExecOptions} opts The execution options
    * @param {String[]} frags the frament keys within the SQL that will be retained
+   * @param {Manager~ExecMeta} meta The SQL execution metadata
    * @param {(Manager~ExecErrorOptions | Boolean)} [errorOpts] The error options to use
    * @returns {Dialect~ExecResults} The execution results
    */
-  async exec(sql, opts, frags, errorOpts) {
+  async exec(sql, opts, frags, meta, errorOpts) {
     const dlt = internal(this);
     let conn, bndp = {}, rslts, esql, ebndp;
     try {
