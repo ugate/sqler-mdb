@@ -107,7 +107,7 @@ module.exports = class MDBDialect {
    */
   async init(opts) {
     const dlt = internal(this), numSql = opts.numOfPreparedStmts;
-    let conn;
+    let conn, error;
     try {
       dlt.at.pool = dlt.at.driver.createPool(dlt.at.opts.pool);
       if (dlt.at.logger) {
@@ -119,13 +119,7 @@ module.exports = class MDBDialect {
       await conn.ping();
       return dlt.at.pool;
     } catch (err) {
-      if (conn) {
-        try {
-          await conn.close();
-        } catch (cerr) {
-          err.closeError = cerr;
-        }
-      }
+      error = err;
       const msg = `sqler-mdb: connection pool "${dlt.at.opts.id}" could not be created`;
       if (dlt.at.errorLogger) dlt.at.errorLogger(`${msg} (passwords are omitted from error) ${JSON.stringify(err, null, ' ')}`);
       const pconf = Object.assign({}, dlt.at.opts.pool);
@@ -133,6 +127,14 @@ module.exports = class MDBDialect {
       err.message = `${err.message}\n${msg} for ${JSON.stringify(pconf, null, ' ')}`;
       err.sqlerMDB = pconf;
       throw err;
+    } finally {
+      if (conn) {
+        try {
+          await conn.end();
+        } catch (cerr) {
+          if (error) error.closeError = cerr;
+        }
+      }
     }
   }
 
@@ -180,13 +182,13 @@ module.exports = class MDBDialect {
         rslts = await dlt.at.pool.query(dopts.exec || esql, ebndp || bndp);
         rtn.rows = rslts;
       } else {
-        const conn = await dlt.this.getConnection(opts);
+        conn = await dlt.this.getConnection(opts);
         rslts = await conn.query(dopts.exec || esql, ebndp || bndp);
         rtn.rows = rslts;
         if (opts.autoCommit) {
           // MariaDB/MySQL has no option to autocommit during SQL execution
           await operation(dlt, 'commit', false, conn, opts)();
-          await operation(dlt, 'close', true, conn, opts)();
+          await operation(dlt, 'end', true, conn, opts)();
         } else {
           dlt.at.state.pending++;
           rtn.commit = operation(dlt, 'commit', true, conn, opts);
@@ -197,7 +199,7 @@ module.exports = class MDBDialect {
     } catch (err) {
       if (conn) {
         try {
-          await operation(dlt, 'close', false, conn, opts)();
+          await operation(dlt, 'end', false, conn, opts)();
         } catch (cerr) {
           err.closeError = cerr;
         }
