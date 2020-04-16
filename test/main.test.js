@@ -16,7 +16,7 @@ exports.lab = lab;
 // TODO : export * as lab from lab;
 
 const TEST_TKO = 3000;
-const TEST_LONG_TKO = 10000;
+const TEST_LONG_TKO = 7000;
 const plan = `MySQL DB Manager`;
 
 // node test/lib/main.js someTestFunction -NODE_ENV=test
@@ -31,7 +31,7 @@ lab.experiment(plan, () => {
   if (Tester.beforeEach) lab.beforeEach(Tester.beforeEach);
   if (Tester.afterEach) lab.afterEach(Tester.afterEach);
 
-  lab.test(`${plan}: Connection Failure`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'init throw' }, Tester.initThrow));
+  lab.test(`${plan}: Connection Failure`, { timeout: TEST_LONG_TKO }, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'init throw' }, Tester.initThrow));
   lab.test(`${plan}: No Pool`, { timeout: TEST_TKO }, Tester.poolNone);
   lab.test(`${plan}: Pool Property Defaults`, { timeout: TEST_TKO }, Tester.poolPropSwap);
   lab.test(`${plan}: Missing Driver Options`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'no driver options throw' }, Tester.driverOptionsNoneThrow));
