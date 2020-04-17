@@ -1,1 +1,1 @@
-> Tests assume that database vendor software, ODBC drivers, etc. are installed prior to running any tests.
+> Tests assume that database vendor software, etc. are installed prior to running any tests.

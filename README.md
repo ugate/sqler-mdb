@@ -12,5 +12,5 @@
 [MariaDB](https://www.npmjs.com/package/mariadb) and/or [MySQL](https://www.mysql.com) dialect for [`sqler`](https://github.com/ugate/sqler).
 
 - [Getting Started (w/compatibility matrix)](https://ugate.github.io/sqler-mdb/tutorial-1-manual.html)
-- [Usage](https://ugate.github.io/sqler-mdb/tutorial-2-mdb)
+- [Usage](https://ugate.github.io/sqler-mdb/tutorial-2-usage.html)
 - [API Docs](https://ugate.github.io/sqler-mdb/module.exports.html)

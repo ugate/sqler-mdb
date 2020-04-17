@@ -7,11 +7,15 @@ const Path = require('path');
 const Fs = require('fs');
 const Os = require('os');
 const { expect } = require('@hapi/code');
+const readChunk = require('read-chunk');
+const imageType = require('image-type');
 // TODO : import { Labrat, LOGGER } from '@ugate/labrat';
 // TODO : import { Manager } from 'sqler.mjs';
 // TODO : import * as Fs from 'fs';
 // TODO : import * as Os from 'os';
 // TODO : import { expect } from '@hapi/code';
+// TODO : import * as readChunk from 'readChunk';
+// TODO : import * as imageType from 'imageType';
 
 const priv = {
   mgr: null,
@@ -108,7 +112,7 @@ class Tester {
     let rslti = -1, lastUpdated;
 
     // expect CRUD results
-    const crudly = (rslt, label, nameIncl, count = 2) => {
+    const crudly = async (rslt, label, nameIncl, count = 2) => {
       if (!rslt.rows) return;
       expect(rslt.rows, `CRUD ${label} rows`).array();
       if (!label.includes('read')) return;
@@ -117,21 +121,21 @@ class Tester {
       for (let row of rslt.rows) {
         expect(row, `CRUD ${label} row`).object();
         if (nameIncl) expect(row.name, `CRUD ${label} row.name`).includes(nameIncl);
-        updated = new Date(row.updated) || row.updated;
+        updated = row.updated;
         expect(updated, `CRUD ${label} row.updated`).date();
         if (lastUpdated) expect(updated, `CRUD ${label} row.updated > lastUpdated`).greaterThan(lastUpdated);
-        // TODO : expect for binary report?
-        // write the report(s) to file?
-        // let report, fpth;
-        // for (let row of rslt.rows) {
-        //   report = row.report;
-        //   if (report) {
-        //     // SQL Server stores varbinary as hexadecimal of base64 encoded images
-        //     //report = Buffer.from(Buffer.from(report).toString('utf8')).toString('base64');
-        //     fpth = `${Os.tmpdir()}/sqler-mysql-${connName}-read-${row.id}.png`;
-        //     await Fs.promises.writeFile(fpth, report);
-        //   }
-        // }
+        // expect binary report image
+        for (let row of rslt.rows) {
+          if (row.report) {
+            expect(row.report, 'row.report').to.be.buffer();
+            if (row.reportPath) {
+              const reportBuffer = readChunk.sync(row.reportPath, 0, 12);
+              const reportType = imageType(reportBuffer);
+              expect(reportType, 'row.report Image Type').to.be.object();
+              expect(reportType.mime, 'row.report Image Mime-Type').to.equal('image/png');
+            }
+          }
+        }
       }
       lastUpdated = updated;
     };

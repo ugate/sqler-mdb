@@ -30,7 +30,7 @@
  * `binds.name = mariadb.SOME_MARIADB_CONSTANT`.
  * @typedef {Manager~ExecOptions} MDBExecOptions
  * @property {Object} [driverOptions] The `mariadb` module specific options.
- * @property {Object} [driverOptions.exec] The options passed into various `mariadb` functions during {@link Manager.exec}.
+ * @property {Object} [driverOptions.exec] The options passed into execution/query functions provided by the `mariadb` module performed during {@link Manager.exec}.
  * When a value is a string surrounded by `${}`, it will be assumed to be a _constant_ property that resides on the `mariadb` module and will be interpolated
  * accordingly.
  * For example `driverOptions.exec.someDriverProp = '${SOME_MARIADB_CONSTANT}'` will be interpolated as
