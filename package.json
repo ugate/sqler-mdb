@@ -36,7 +36,7 @@
     "@ugate/labrat": "^2.1.0",
     "jsdoc": "^3.6.4",
     "jsdocp": "^1.0.3",
-    "mariadb": ">=2.3.1",
+    "mariadb": "^2.3.1",
     "minami": "^1.2.3",
     "moment-db": "^2.0.0",
     "sqler": "^5.8.0"
