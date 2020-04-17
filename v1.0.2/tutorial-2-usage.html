@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Global - Documentation</title>
+    <title>Usage - Documentation</title>
 
     <script src="scripts/prettify/prettify.js"></script>
     <script src="scripts/prettify/lang-css.js"></script>
@@ -225,613 +225,327 @@
 
 <div id="main">
     
-    <h1 class="page-title">Global</h1>
+    <h1 class="page-title">Usage</h1>
     
 
-    
-
-
-
-
-<section>
+    <section>
 
 <header>
-    
-        <h2>
-        
-        </h2>
-        
     
 </header>
 
 <article>
-    <div class="container-overview">
-    
-        
-
-        
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-        
-    
-    </div>
-
-    
-
-    
-
-    
-
-     
-
-    
-
-    
-
-    
-
-    
-        <h3 class="subsection-title">Type Definitions</h3>
-
-        
-                
-<div class="section-members">
-<h4 class="name" id="MDBConnectionOptions">MDBConnectionOptions</h4>
-
-
-
-
-<div class="description">
-    <p>MariaDB + MySQL specific extension of the <code>Manager~ConnectionOptions</code> from the <a href="https://ugate.github.io/sqler/"><code>sqler</code></a> module.</p>
-</div>
-
-
-
-
-
-    <h5 class="subsection-title">Properties:</h5>
-
-    
-
-<table class="props">
-    <thead>
-    <tr>
-        
-        <th>Name</th>
-        
-
-        <th>Type</th>
-
-        
-
-        
-
-        <th class="last">Description</th>
-    </tr>
-    </thead>
-
-    <tbody>
-    
-
-        <tr>
-            
-                <td class="name"><code>driverOptions</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type"><code>Object</code></span>
-
-
-            
-            </td>
-
-            
-
-            
-
-            <td class="description last"><p>The <code>mariadb</code> (w/MySQL support) module specific options. <strong>Both <code>connection</code> and <code>pool</code> will be merged when generating
-the connection pool.</strong></p></td>
-        </tr>
-
-        
-        <tr>
-                <h6>Properties</h6>
-
-<table class="props">
-    <thead>
-    <tr>
-        
-        <th>Name</th>
-        
-
-        <th>Type</th>
-
-        
-        <th>Attributes</th>
-        
-
-        
-
-        <th class="last">Description</th>
-    </tr>
-    </thead>
-
-    <tbody>
-    
-
-        <tr>
-            
-                <td class="name"><code>connection</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type"><code>Object</code></span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-                </td>
-            
-
-            
-
-            <td class="description last"><p>An object that will contain properties/values that will be used to construct the MariaDB + MySQL connection
-(e.g. <code>{ database: 'mydb', timezone: '-0700' }</code>). See the <code>mariadb</code> module documentation for a full listing of available connection options.
-When a property value is a string surrounded by <code>${}</code>, it will be assumed to be a property that resides on either the <code>Manager~PrivateOptions</code>
-passed into the <code>Manager</code> constructor or a property on the <a href="global.html#MDBConnectionOptions"><code>MDBConnectionOptions</code></a> itself (in that order of precedence). For example,
-<code>connOpts.host = '127.0.0.1'</code> and <code>driverOptions.connection.host = '${host}'</code> would be interpolated into <code>driverOptions.connection.host = '127.0.0.1'</code>.
-In contrast to <code>privOpts.username = 'someUsername' and </code>driverOptions.connection.user = '${username}'<code>would be interpolated into</code>driverOptions.connection.user = 'someUsername'<code>. Interpoaltions can also contain more than one reference. For example, </code>driverOptions.connection.someProp = '${protocol}:${host}'<code>for </code>privOpts = { protocol: 'TCP', host: 'example.com' }<code>would become</code>someProp='TCP:example.com'`.</p></td>
-        </tr>
-
-        
-
-    
-
-        <tr>
-            
-                <td class="name"><code>pool</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type"><code>Object</code></span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-                </td>
-            
-
-            
-
-            <td class="description last"><p>The pool <code>conf</code> options that will be passed into <code>mariadb.createPool(conf)</code>. See the <code>mariadb</code> module for a full
-listing of avialable connection pooling options.
-<strong>Using any of the generic <code>pool.someOption</code> will override the <code>conf</code> options set on <code>driverOptions.pool</code></strong> (e.g. <code>pool.max = 10</code> would override
-<code>driverOptions.pool.connectionLimit = 20</code>).
-When a value is a string surrounded by <code>${}</code>, it will be assumed to be a <em>constant</em> property that resides on the <code>mariadb</code> module and will be interpolated
-accordingly.
-For example <code>driverOptions.pool.someProp = '${SOME_MARIADB_CONSTANT}'</code> will be interpolated as <code>pool.someProp = mariadb.SOME_MARIADB_CONSTANT</code>.</p></td>
-        </tr>
-
-        
-
-    
-    </tbody>
-</table>
-
-        </tr>
-        
-
-    
-    </tbody>
-</table>
-
-
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line3">line 3</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-    <h5>Type:</h5>
-    <ul>
-        <li>
-            
-<span class="param-type"><code>Manager~ConnectionOptions</code></span>
-
-
-        </li>
-    </ul>
-
-
-
-
-
-</div>
-
-            
-                
-<div class="section-members">
-<h4 class="name" id="MDBExecOptions">MDBExecOptions</h4>
-
-
-
-
-<div class="description">
-    <p>MariaDB + MySQL specific extension of the <code>Manager~ExecOptions</code> from the <a href="https://ugate.github.io/sqler/"><code>sqler</code></a> module. When a property of <code>binds</code>
-contains an object it will be <em>interpolated</em> for property values on the <code>mariadb</code> module.
-For example, <code>binds.name = '${SOME_MARIADB_CONSTANT}'</code> will be interpolated as
-<code>binds.name = mariadb.SOME_MARIADB_CONSTANT</code>.</p>
-</div>
-
-
-
-
-
-    <h5 class="subsection-title">Properties:</h5>
-
-    
-
-<table class="props">
-    <thead>
-    <tr>
-        
-        <th>Name</th>
-        
-
-        <th>Type</th>
-
-        
-        <th>Attributes</th>
-        
-
-        
-
-        <th class="last">Description</th>
-    </tr>
-    </thead>
-
-    <tbody>
-    
-
-        <tr>
-            
-                <td class="name"><code>driverOptions</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type"><code>Object</code></span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-                </td>
-            
-
-            
-
-            <td class="description last"><p>The <code>mariadb</code> module specific options.</p></td>
-        </tr>
-
-        
-        <tr>
-                <h6>Properties</h6>
-
-<table class="props">
-    <thead>
-    <tr>
-        
-        <th>Name</th>
-        
-
-        <th>Type</th>
-
-        
-        <th>Attributes</th>
-        
-
-        
-
-        <th class="last">Description</th>
-    </tr>
-    </thead>
-
-    <tbody>
-    
-
-        <tr>
-            
-                <td class="name"><code>exec</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type"><code>Object</code></span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-                </td>
-            
-
-            
-
-            <td class="description last"><p>The options passed into execution/query functions provided by the <code>mariadb</code> module performed during <code>Manager.exec</code>.
-When a value is a string surrounded by <code>${}</code>, it will be assumed to be a <em>constant</em> property that resides on the <code>mariadb</code> module and will be interpolated
-accordingly.
-For example <code>driverOptions.exec.someDriverProp = '${SOME_MARIADB_CONSTANT}'</code> will be interpolated as
-<code>driverOptions.exec.someDriverProp = mariadb.SOME_MARIADB_CONSTANT</code>.</p></td>
-        </tr>
-
-        
-        <tr>
-                <h6>Properties</h6>
-
-<table class="props">
-    <thead>
-    <tr>
-        
-        <th>Name</th>
-        
-
-        <th>Type</th>
-
-        
-        <th>Attributes</th>
-        
-
-        
-        <th>Default</th>
-        
-
-        <th class="last">Description</th>
-    </tr>
-    </thead>
-
-    <tbody>
-    
-
-        <tr>
-            
-                <td class="name"><code>namedPlaceholders</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type"><code>Boolean</code></span>
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    true
-                
-                </td>
-            
-
-            <td class="description last"><p>Truthy to use named parameters in MariaDB/MySQL or falsy to convert the named parameters into a
-positional array of bind values.</p></td>
-        </tr>
-
-        
-
-    
-    </tbody>
-</table>
-
-        </tr>
-        
-
-    
-    </tbody>
-</table>
-
-        </tr>
-        
-
-    
-    </tbody>
-</table>
-
-
-
-
-<dl class="details">
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="index.js.html">index.js</a>, <a href="index.js.html#line26">line 26</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-    <h5>Type:</h5>
-    <ul>
-        <li>
-            
-<span class="param-type"><code>Manager~ExecOptions</code></span>
-
-
-        </li>
-    </ul>
-
-
-
-
-
-</div>
-
-            
-    
-
-    
+    <h3>💡 <a href="https://mariadb.org">MariaDB</a> and/or <a href="https://www.mysql.com">MySQL</a> Examples:</h3>
+<h4>Examples:<sub id="examples"></sub></h4>
+<p>The examples below use the following setup:</p>
+<p><strong><a href="https://ugate.github.io/sqler/Manager.html#~PrivateOptions">Private Options Configuration:</a></strong> (appended to the subsequent connection options)</p>
+<pre class="prettyprint source lang-json"><code>{
+  &quot;univ&quot;: {
+    &quot;db&quot;: {
+      &quot;mdb&quot;: {
+        &quot;host&quot;: &quot;localhost&quot;,
+        &quot;username&quot;:&quot;admin&quot;,
+        &quot;password&quot;: &quot;my3qllocal&quot;
+      }
+    }
+  }
+}
+</code></pre>
+<p><strong><a href="global.html#MDBConnectionOptions">Connection Options Configuration:</a></strong></p>
+<pre class="prettyprint source lang-json"><code>{
+  &quot;db&quot;: {
+    &quot;dialects&quot;: {
+      &quot;mdb&quot;: &quot;sqler-mdb&quot;
+    },
+    &quot;connections&quot;: [
+      {
+        &quot;id&quot;: &quot;mdb&quot;,
+        &quot;name&quot;: &quot;mdb&quot;,
+        &quot;dir&quot;: &quot;db/mdb&quot;,
+        &quot;service&quot;: &quot;MySQL&quot;,
+        &quot;dialect&quot;: &quot;mdb&quot;,
+        &quot;pool&quot;: {},
+        &quot;driverOptions&quot;: {
+          &quot;connection&quot;: {
+            &quot;multipleStatements&quot;: true
+          }
+        }
+      }
+    ]
+  }
+}
+</code></pre>
+<p>Test code that illustrates how to use MariaDB/MySQL with various examples</p>
+<pre class="prettyprint source lang-js"><code>// assuming &quot;conf&quot; contains combined &quot;univ&quot; and &quot;db&quot; objects from above
+
+// create/initialize manager
+const manager = new Manager(conf);
+await manager.init();
+
+// see subsequent examples for different examples
+const result = await runExample(manager, 'mdb');
+
+console.log('Result:', result);
+
+// after we're done using the manager we should close it
+process.on('SIGINT', async function sigintDB() {
+  await manager.close();
+  console.log('Manager has been closed');
+});
+</code></pre>
+<p><strong>Create Database:</strong></p>
+<pre class="prettyprint source lang-sql"><code>-- db/mdb/setup/create.database.sql
+CREATE DATABASE IF NOT EXISTS sqlermysql
+</code></pre>
+<pre class="prettyprint source lang-js"><code>'use strict';
+
+// export just to illustrate module usage
+module.exports = async function runExample(manager, connName) {
+
+  // create test database
+  const rslt = await manager.db[connName].setup.create.database();
+
+  return rslt;
+};
+</code></pre>
+<p><strong>Create Table(s):</strong></p>
+<pre class="prettyprint source lang-sql"><code>-- db/mdb/setup/create.table1.sql
+CREATE TABLE IF NOT EXISTS sqlermysql.TEST (ID INTEGER NOT NULL PRIMARY KEY, NAME VARCHAR(255), CREATED_AT DATETIME(3), UPDATED_AT DATETIME(3))
+</code></pre>
+<pre class="prettyprint source lang-sql"><code>-- db/mdb/setup/create.table2.sql
+CREATE TABLE IF NOT EXISTS sqlermysql.TEST2 (ID INTEGER NOT NULL PRIMARY KEY, NAME VARCHAR(255), REPORT BLOB, CREATED_AT DATETIME(3), UPDATED_AT DATETIME(3))
+</code></pre>
+<pre class="prettyprint source lang-js"><code>'use strict';
+
+// export just to illustrate module usage
+module.exports = async function runExample(manager, connName) {
+
+  // create test table records
+  const rslt = await manager.db[connName].setup.create.table1();
+
+  return rslt;
+};
+</code></pre>
+<pre class="prettyprint source lang-js"><code>'use strict';
+
+// export just to illustrate module usage
+module.exports = async function runExample(manager, connName) {
+
+  // create test table two records
+  const rslt = await manager.db[connName].setup.create.table2();
+
+  return rslt;
+};
+</code></pre>
+<p><strong>Create Rows:</strong></p>
+<pre class="prettyprint source lang-sql"><code>-- db/mdb/create.table.rows.sql
+CREATE PROCEDURE sqlermysql.perform_test_inserts
+(
+  IN p_id INTEGER, IN p_name VARCHAR(255), IN p_created DATETIME(3), IN p_updated DATETIME(3),
+  IN p_id2 INTEGER, IN p_name2 VARCHAR(255), IN p_report2 BLOB, IN p_created2 DATETIME(3), IN p_updated2 DATETIME(3)
+)
+BEGIN
+  /*
+  Stored procedure is not required when executing a single SQL statement
+  Also, MySQL doesn't support anonymous stored procedure blocks
+  So, a temporary stored procedure is used instead
+  */
+  INSERT INTO sqlermysql.TEST (`ID`, `NAME`, CREATED_AT, UPDATED_AT)
+  VALUES (p_id, p_name, p_created, p_updated);
+  INSERT INTO sqlermysql.TEST2 (`ID`, `NAME`, REPORT, CREATED_AT, UPDATED_AT)
+  VALUES (p_id2, p_name2, p_report2, p_created2, p_updated2);
+END;
+CALL sqlermysql.perform_test_inserts(
+  :id, :name, :created, :updated,
+  :id2, :name2, :report2, :created2, :updated2
+);
+DROP PROCEDURE sqlermysql.perform_test_inserts;
+</code></pre>
+<pre class="prettyprint source lang-js"><code>'use strict';
+
+const Fs = require('fs');
+
+// export just to illustrate module usage
+module.exports = async function runExample(manager, connName) {
+
+  const date = new Date();
+
+  // The driver module currently doesn't support Fs.ReadStream/Fs.createReadStream()
+  const report = await Fs.promises.readFile('./test/files/audit-report.png');
+
+  // Insert rows into multiple tables within a single execution
+  const rslt = await manager.db[connName].create.table.rows({
+    binds: {
+      id: 1, name: 'TABLE: 1, ROW: 1', created: date, updated: date,
+      id2: 1, name2: 'TABLE: 2, ROW: 1', report2: report, created2: date, updated2: date
+    }
+  });
+
+  return rslt;
+};
+</code></pre>
+<p><strong>Read Rows:</strong></p>
+<pre class="prettyprint source lang-sql"><code>-- db/mdb/read.table.rows.sql
+SELECT TST.ID AS &quot;id&quot;, TST.NAME AS &quot;name&quot;, NULL AS &quot;report&quot;,
+TST.CREATED_AT AS &quot;created&quot;, TST.UPDATED_AT AS &quot;updated&quot;
+FROM sqlermysql.TEST TST
+WHERE UPPER(TST.NAME) LIKE CONCAT(CONCAT('%', UPPER(:name)), '%') 
+UNION
+SELECT TST2.ID AS &quot;id&quot;, TST2.NAME AS &quot;name&quot;, TST2.REPORT AS &quot;report&quot;,
+TST2.CREATED_AT AS &quot;created&quot;, TST2.UPDATED_AT AS &quot;updated&quot;
+FROM sqlermysql.TEST2 TST2
+WHERE UPPER(TST2.NAME) LIKE CONCAT(CONCAT('%', UPPER(:name)), '%')
+</code></pre>
+<pre class="prettyprint source lang-js"><code>'use strict';
+
+const Os = require('os');
+const Fs = require('fs');
+
+// export just to illustrate module usage
+module.exports = async function runExample(manager, connName) {
+
+  // read from multiple tables
+  const rslt = await manager.db[connName].read.table.rows({ binds: { name: 'table' } });
+
+  // write binary report buffer to file?
+  const writeProms = [];
+  for (let row of rslt.rows) {
+    if (row.report) {
+      // store the path to the report (illustrative purposes only)
+      row.reportPath = `${Os.tmpdir()}/sqler-${connName}-read-${row.id}.png`;
+      writeProms.push(Fs.promises.writeFile(row.reportPath, row.report));
+    }
+  }
+  if (writeProms.length) {
+    await Promise.all(writeProms);
+  }
+
+  return rslt;
+};
+</code></pre>
+<p><strong>Update Rows:</strong></p>
+<pre class="prettyprint source lang-sql"><code>-- db/mdb/update.table.rows.sql
+CREATE PROCEDURE sqlermysql.perform_test_updates
+(
+  IN p_id INTEGER, IN p_name VARCHAR(255), IN p_updated DATETIME(3),
+  IN p_id2 INTEGER, IN p_name2 VARCHAR(255), IN p_updated2 DATETIME(3)
+)
+BEGIN
+  /*
+  Stored procedure is not required when executing a single SQL statement
+  Also, MySQL doesn't support anonymous stored procedure blocks
+  So, a temporary stored procedure is used instead
+  */
+  UPDATE sqlermysql.TEST
+  SET NAME = p_name, UPDATED_AT = p_updated
+  WHERE ID = p_id;
+  UPDATE sqlermysql.TEST2
+  SET NAME = p_name2, UPDATED_AT = p_updated2
+  WHERE ID = p_id2;
+END;
+CALL sqlermysql.perform_test_updates(
+  :id, :name, :updated,
+  :id2, :name2, :updated2
+);
+DROP PROCEDURE sqlermysql.perform_test_updates;
+</code></pre>
+<pre class="prettyprint source lang-js"><code>'use strict';
+
+// export just to illustrate module usage
+module.exports = async function runExample(manager, connName) {
+
+  const date = new Date();
+
+  // binds can contain multiple table updates
+  const binds = {
+    id: 1, name: 'TABLE: 1, ROW: 1 (UPDATE)', updated: date,
+    id2: 1, name2: 'TABLE: 2, ROW: 1 (UPDATE)', updated2: date
+  };
+  let exec;
+
+  //-------------------------------------------------------
+  // There are two different ways to perform a transaction
+  // 1. Explicit (suitable for multiple executions in 1 tx)
+  // 2. Implicit (suitable for a single execution in 1 tx)
+
+  // Using an explicit transaction:
+  try {
+    // start a transaction
+    const txId = await manager.db[connName].beginTransaction();
+    exec = await manager.db[connName].update.table.rows({
+      autoCommit: false,
+      transactionId: txId, // ensure execution takes place within transaction
+      binds
+    });
+    await exec.commit();
+  } catch (err) {
+    if (exec) {
+      await exec.rollback();
+    }
+    throw err;
+  }
+
+  // Using an implicit transcation (autoCommit defaults to true):
+  exec = await manager.db[connName].update.table.rows({
+    binds
+  });
+
+  return exec;
+};
+</code></pre>
+<p><strong>Delete Rows:</strong></p>
+<pre class="prettyprint source lang-sql"><code>-- db/mdb/delete.table.rows.sql
+CREATE PROCEDURE sqlermysql.perform_test_deletes
+(
+  IN p_id INTEGER, IN p_id2 INTEGER
+)
+BEGIN
+  /*
+  Stored procedure is not required when executing a single SQL statement
+  Also, MySQL doesn't support anonymous stored procedure blocks
+  So, a temporary stored procedure is used instead
+  */
+  DELETE FROM sqlermysql.TEST
+  WHERE ID = :id;
+  DELETE FROM sqlermysql.TEST2
+  WHERE ID = :id2;
+END;
+CALL sqlermysql.perform_test_deletes(
+  :id, :id2
+);
+DROP PROCEDURE sqlermysql.perform_test_deletes;
+</code></pre>
+<pre class="prettyprint source lang-js"><code>'use strict';
+
+// export just to illustrate module usage
+module.exports = async function runExample(manager, connName) {
+
+  // Delete rows from multiple tables within a single execution
+  const rslt = await manager.db[connName].delete.table.rows({
+    binds: { id: 1, id2: 1 }
+  });
+
+  return rslt;
+};
+</code></pre>
+<p><strong>Delete Database:</strong></p>
+<pre class="prettyprint source lang-sql"><code>-- db/mdb/setup/delete.database.sql
+DROP DATABASE sqlermysql
+</code></pre>
+<pre class="prettyprint source lang-js"><code>'use strict';
+
+// export just to illustrate module usage
+module.exports = async function runExample(manager, connName) {
+
+  // delete the test database
+  const rslt = await manager.db[connName].setup.delete.database();
+
+  return rslt;
+};
+</code></pre>
 </article>
 
 </section>
-
-
-
 
 </div>
 
