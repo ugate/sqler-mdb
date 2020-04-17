@@ -23,6 +23,7 @@ const priv = {
   rowCount: 2,
   mgrLogit: !!LOGGER.info,
   vendor: 'mdb',
+  defaultPort: 3306,
   conf: {}
 };
 
@@ -316,7 +317,7 @@ class Tester {
     if (conf.univ.db[priv.vendor].hasOwnProperty('port')) {
       delete conf.univ.db[priv.vendor].port;
     } else {
-      conf.univ.db[priv.vendor].port = 3306;
+      conf.univ.db[priv.vendor].port = priv.defaultPort;
     }
     const mgr = new Manager(conf, priv.cache, priv.mgrLogit);
     await mgr.init();
