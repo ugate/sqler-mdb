@@ -9,10 +9,10 @@ The following modules versions are required when using `sqler-mdb` for [MariaDB]
 Install the required modules:
 ```sh
 npm install sqler
-npm install sqler-mariadb
-npm install mysql2
+npm install sqler-mdb
+npm install mariadb
 ```
 
 Connection and execution option extensions can be found under the API docs for [globals](global.html).
 
-### 💡 [MariaDB and/or MySQL Usage](tutorial-2-mdb.html)
+### 💡 [MariaDB and/or MySQL Usage](tutorial-2-usage.html)
