@@ -126,15 +126,13 @@ class Tester {
         expect(updated, `CRUD ${label} row.updated`).date();
         if (lastUpdated) expect(updated, `CRUD ${label} row.updated > lastUpdated`).greaterThan(lastUpdated);
         // expect binary report image
-        for (let row of rslt.rows) {
-          if (row.report) {
-            expect(row.report, 'row.report').to.be.buffer();
-            if (row.reportPath) {
-              const reportBuffer = readChunk.sync(row.reportPath, 0, 12);
-              const reportType = imageType(reportBuffer);
-              expect(reportType, 'row.report Image Type').to.be.object();
-              expect(reportType.mime, 'row.report Image Mime-Type').to.equal('image/png');
-            }
+        if (row.report) {
+          expect(row.report, 'row.report').to.be.buffer();
+          if (row.reportPath) {
+            const reportBuffer = readChunk.sync(row.reportPath, 0, 12);
+            const reportType = imageType(reportBuffer);
+            expect(reportType, 'row.report Image Type').to.be.object();
+            expect(reportType.mime, 'row.report Image Mime-Type').to.equal('image/png');
           }
         }
       }
