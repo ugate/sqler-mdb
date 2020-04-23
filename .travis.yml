@@ -10,7 +10,7 @@ node_js:
 #  - mysql
 #  - postgresql
 env:
-  - REPO_VER=v1.2.0 MYSQL_MAJOR=8 MYSQL_MINOR=14 MYSQL_PATCH=1
+  - REPO_VER=v1.3.1 MYSQL_MAJOR=8 MYSQL_MINOR=14 MYSQL_PATCH=1
 before_install:
   - wget -O install-mysql.sh https://raw.githubusercontent.com/ugate/repo/$REPO_VER/mysql/install.sh
   - bash ./install-mysql.sh
