@@ -60,6 +60,7 @@ module.exports = class MDBDialect {
     dlt.at.track = track;
     dlt.at.driver = require('mariadb');
     dlt.at.connections = {};
+    dlt.at.stmts = new Map();
     dlt.at.opts = {
       autoCommit: true, // default autoCommit = true to conform to sqler
       id: `sqlerMDBGen${Math.floor(Math.random() * 10000)}`,
@@ -106,7 +107,7 @@ module.exports = class MDBDialect {
    * @returns {Object} The MariaDB/MySQL connection pool
    */
   async init(opts) {
-    const dlt = internal(this), numSql = opts.numOfPreparedStmts;
+    const dlt = internal(this), numSql = opts.numOfPreparedFuncs;
     let conn, error;
     try {
       dlt.at.pool = dlt.at.driver.createPool(dlt.at.opts.pool);
@@ -179,20 +180,44 @@ module.exports = class MDBDialect {
 
       const rtn = {};
 
-      if (!opts.transactionId && opts.type === 'READ') {
+      if (!opts.transactionId && !opts.prepareStatement && opts.type === 'READ') {
         rslts = await dlt.at.pool.query(dopts.exec || esql, ebndp || bndp);
         rtn.rows = rslts;
       } else {
         conn = await dlt.this.getConnection(opts);
-        rslts = await conn.query(dopts.exec || esql, ebndp || bndp);
-        rtn.rows = rslts;
-        if (opts.autoCommit) {
-          // MariaDB/MySQL has no option to autocommit during SQL execution
-          await operation(dlt, 'commit', false, conn, opts)();
+        if (opts.prepareStatement) {
+          const psql = (dopts.exec && dopts.exec.sql) || esql;
+          const psname = conn.escape(meta.name);
+          let pso;
+          rtn.unprepare = async () => {
+            if (dlt.at.stmts.has(psname)) {
+              await dlt.at.pool.query(`DEALLOCATE PREPARE ${psname}`);
+              dlt.at.stmts.delete(psname);
+            }
+          };
+          if (!dlt.at.stmts.has(psname) || (pso = dlt.at.stmts.get(psname)).sql !== psql) {
+            // check if SQL has changed since it was prepared
+            if (dlt.at.stmts.has(psname)) await rtn.unprepare();
+            await conn.query(`PREPARE ${psname} FROM ?`, [psql]);
+            pso = { name: psname, sql: psql };
+            pso.bnames = ebndp ? ebndp : Object.getOwnPropertyNames(bndp);
+            dlt.at.stmts.set(meta.name, pso);
+          }
+          rslts = await conn.query(`EXECUTE ${pso.name}${pso.bnames.length ? ` USING :${pso.bnames.join(', :')}` : ''}`, bndp);
+          rtn.rows = rslts;
         } else {
-          dlt.at.state.pending++;
-          rtn.commit = operation(dlt, 'commit', true, conn, opts);
-          rtn.rollback = operation(dlt, 'rollback', true, conn, opts);
+          rslts = await conn.query(dopts.exec || esql, ebndp || bndp);
+          rtn.rows = rslts;
+        }
+        if (opts.transactionId) {
+          if (opts.autoCommit) {
+            // MariaDB/MySQL has no option to autocommit during SQL execution
+            await operation(dlt, 'commit', false, conn, opts, rtn.unprepare)();
+          } else {
+            dlt.at.state.pending++;
+            rtn.commit = operation(dlt, 'commit', true, conn, opts, rtn.unprepare);
+            rtn.rollback = operation(dlt, 'rollback', true, conn, opts, rtn.unprepare);
+          }
         }
       }
       return rtn;
@@ -275,11 +300,13 @@ module.exports = class MDBDialect {
  * @param {Boolean} reset Truthy to reset the pending connection and transaction count when the operation completes successfully
  * @param {Object} conn The connection
  * @param {Manager~ExecOptions} [opts] The {@link Manager~ExecOptions}
+ * @param {Function} [preop] A no-argument async function that will be executed prior to the operation
  * @returns {Function} A no-arguement `async` function that returns the number or pending transactions
  */
-function operation(dlt, name, reset, conn, opts) {
+function operation(dlt, name, reset, conn, opts, preop) {
   return async () => {
     let error;
+    if (preop) await preop();
     try {
       if (dlt.at.logger) {
         dlt.at.logger(`sqler-mdb: Performing ${name} on connection pool "${dlt.at.opts.id}" (uncommitted transactions: ${dlt.at.state.pending})`);
