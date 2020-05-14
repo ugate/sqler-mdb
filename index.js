@@ -131,7 +131,7 @@ module.exports = class MDBDialect {
     } finally {
       if (conn) {
         try {
-          await conn.end();
+          await conn.release();
         } catch (cerr) {
           if (error) error.closeError = cerr;
         }
@@ -164,14 +164,14 @@ module.exports = class MDBDialect {
    */
   async exec(sql, opts, frags, meta, errorOpts) {
     const dlt = internal(this);
-    let conn, bndp = {}, rslts, esql, ebndp;
+    let conn, bndp = {}, dopts, rslts, esql, ebndp, error;
     try {
       // interpolate and remove unused binds since
       // MariaDB/MySQL only accepts the exact number of bind parameters (also, cuts down on payload bloat)
       bndp = dlt.at.track.interpolate(bndp, opts.binds, dlt.at.driver, props => sql.includes(`:${props[0]}`));
 
       // driver options exec override the 
-      const dopts = opts.driverOptions || {};
+      dopts = opts.driverOptions || {};
       const named = dopts.exec && dopts.exec.hasOwnProperty('namedPlaceholders') ? dopts.exec.namedPlaceholders :
         dlt.at.opts.pool.namedPlaceholders;
       esql = named ? sql : dlt.at.track.positionalBinds(sql, bndp, ebndp = []);
@@ -180,39 +180,17 @@ module.exports = class MDBDialect {
 
       const rtn = {};
 
-      if (!opts.transactionId && !opts.prepareStatement && opts.type === 'READ') {
+      if (!opts.transactionId && opts.type === 'READ') {
         rslts = await dlt.at.pool.query(dopts.exec || esql, ebndp || bndp);
         rtn.rows = rslts;
       } else {
         conn = await dlt.this.getConnection(opts);
-        if (opts.prepareStatement) {
-          const psql = (dopts.exec && dopts.exec.sql) || esql;
-          const psname = conn.escape(meta.name);
-          let pso;
-          rtn.unprepare = async () => {
-            if (dlt.at.stmts.has(psname)) {
-              await dlt.at.pool.query(`DEALLOCATE PREPARE ${psname}`);
-              dlt.at.stmts.delete(psname);
-            }
-          };
-          if (!dlt.at.stmts.has(psname) || (pso = dlt.at.stmts.get(psname)).sql !== psql) {
-            // check if SQL has changed since it was prepared
-            if (dlt.at.stmts.has(psname)) await rtn.unprepare();
-            await conn.query(`PREPARE ${psname} FROM ?`, [psql]);
-            pso = { name: psname, sql: psql };
-            pso.bnames = ebndp ? ebndp : Object.getOwnPropertyNames(bndp);
-            dlt.at.stmts.set(meta.name, pso);
-          }
-          rslts = await conn.query(`EXECUTE ${pso.name}${pso.bnames.length ? ` USING :${pso.bnames.join(', :')}` : ''}`, bndp);
-          rtn.rows = rslts;
-        } else {
-          rslts = await conn.query(dopts.exec || esql, ebndp || bndp);
-          rtn.rows = rslts;
-        }
+        rslts = await conn.query(dopts.exec || esql, ebndp || bndp);
+        rtn.rows = rslts;
         if (opts.transactionId) {
           if (opts.autoCommit) {
             // MariaDB/MySQL has no option to autocommit during SQL execution
-            await operation(dlt, 'commit', false, conn, opts, rtn.unprepare)();
+            await operation(dlt, 'commit', false, conn, opts)();
           } else {
             dlt.at.state.pending++;
             rtn.commit = operation(dlt, 'commit', true, conn, opts, rtn.unprepare);
@@ -222,19 +200,20 @@ module.exports = class MDBDialect {
       }
       return rtn;
     } catch (err) {
-      if (conn) {
-        try {
-          await operation(dlt, 'end', false, conn, opts)();
-        } catch (cerr) {
-          err.closeError = cerr;
-        }
-      }
-      const msg = ` (BINDS: [${Object.keys(bndp)}], FRAGS: ${Array.isArray(frags) ? frags.join(', ') : frags})`;
+      error = err;
       if (dlt.at.errorLogger) {
         dlt.at.errorLogger(`Failed to execute the following SQL: ${sql}`, err);
       }
-      err.message += msg;
+      err.sqlerMDB = dopts;
       throw err;
+    } finally {
+      if (conn) {
+        try {
+          await operation(dlt, 'release', false, conn, opts)();
+        } catch (cerr) {
+          if (error) error.closeError = cerr;
+        }
+      }
     }
   }
 
@@ -324,9 +303,9 @@ function operation(dlt, name, reset, conn, opts, preop) {
       }
       throw error;
     } finally {
-      if (name !== 'end') {
+      if (name !== 'end' && name !== 'release') {
         try {
-          await conn.end();
+          await conn.release();
         } catch (cerr) {
           if (error) {
             error.closeError = cerr;

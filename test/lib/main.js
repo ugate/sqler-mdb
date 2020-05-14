@@ -154,6 +154,14 @@ class Tester {
     rslts[++rslti] = await read(priv.mgr, priv.vendor);
     crudly(rslts[rslti], 'update read', 'UPDATE');
 
+    // extra update to test procedure
+    await priv.mgr.db[priv.vendor].update.table.rows({
+      binds: {
+        id: 1, name: 'TABLE: 1, ROW: 1 (UPDATE)', updated: new Date(),
+        id2: 1, name2: 'TABLE: 2, ROW: 1 (UPDATE)', updated2: new Date()
+      }
+    });
+
     const del = getCrudOp('delete', priv.vendor);
     rslts[++rslti] = await del(priv.mgr, priv.vendor);
     crudly(rslts[rslti], 'delete');
