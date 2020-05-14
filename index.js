@@ -180,13 +180,35 @@ module.exports = class MDBDialect {
 
       const rtn = {};
 
-      if (!opts.transactionId && opts.type === 'READ') {
+      if (!opts.transactionId && !opts.prepareStatement && opts.type === 'READ') {
         rslts = await dlt.at.pool.query(dopts.exec || esql, ebndp || bndp);
         rtn.rows = rslts;
       } else {
         conn = await dlt.this.getConnection(opts);
-        rslts = await conn.query(dopts.exec || esql, ebndp || bndp);
-        rtn.rows = rslts;
+        if (opts.prepareStatement) {
+          const psql = (dopts.exec && dopts.exec.sql) || esql;
+          const psname = meta.name;//conn.escape(meta.name);
+          let pso;
+          rtn.unprepare = async () => {
+            if (dlt.at.stmts.has(psname)) {
+              await dlt.at.pool.query(`DEALLOCATE PREPARE ${psname}`);
+              dlt.at.stmts.delete(psname);
+            }
+          };
+          if (!dlt.at.stmts.has(psname) || (pso = dlt.at.stmts.get(psname)).sql !== psql) {
+            // check if SQL has changed since it was prepared
+            if (dlt.at.stmts.has(psname)) await rtn.unprepare();
+            pso = { name: psname, sql: psql, psql: `PREPARE ${psname} FROM '${psql}'` };
+            await conn.query(pso.psql);// psql.replace(/([^'\\]*(?:\\.[^'\\]*)*)'/g, "$1\\'")
+            pso.bnames = ebndp ? ebndp : Object.getOwnPropertyNames(bndp);
+            dlt.at.stmts.set(meta.name, pso);
+          }
+          rslts = await conn.query(`EXECUTE ${pso.name}${pso.bnames.length ? ` USING :${pso.bnames.join(', :')}` : ''}`, bndp);
+          rtn.rows = rslts;
+        } else {
+          rslts = await conn.query(dopts.exec || esql, ebndp || bndp);
+          rtn.rows = rslts;
+        }
         if (opts.transactionId) {
           if (opts.autoCommit) {
             // MariaDB/MySQL has no option to autocommit during SQL execution
