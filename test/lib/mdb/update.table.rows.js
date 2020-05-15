@@ -26,7 +26,7 @@ module.exports = async function runExample(manager, connName) {
   await explicitTransactionUpdate(manager, connName, binds1, binds2, rtn);
 
   // Using a prepared statement:
-  //await preparedStatementUpdate(manager, connName, binds1, rtn);
+  await preparedStatementUpdate(manager, connName, binds1, rtn);
 
   // Using a prepared statement within an explicit transaction
   //await preparedStatementExplicitTxUpdate(manager, connName, binds1, rtn);

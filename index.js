@@ -174,9 +174,16 @@ module.exports = class MDBDialect {
       dopts = opts.driverOptions || {};
       const named = dopts.exec && dopts.exec.hasOwnProperty('namedPlaceholders') ? dopts.exec.namedPlaceholders :
         dlt.at.opts.pool.namedPlaceholders;
-      esql = named ? sql : dlt.at.track.positionalBinds(sql, bndp, ebndp = []);
-
+      //esql = dlt.at.track.positionalBinds(sql, bndp, [], pname => `@${pname}`);
+      if (named && !opts.prepareStatement) {
+        esql = sql;
+      } else { // all bound via "?"
+        esql = dlt.at.track.positionalBinds(sql, bndp, ebndp = []);
+      }
       if (dopts.exec) dopts.exec.sql = esql;
+
+      let pso; //psname = conn.escape(meta.name);
+      const isPrepare = opts.prepareStatement && (!dlt.at.stmts.has(meta.name) || (pso = dlt.at.stmts.get(meta.name)).sql !== esql);
 
       const rtn = {};
 
@@ -186,24 +193,27 @@ module.exports = class MDBDialect {
       } else {
         conn = await dlt.this.getConnection(opts);
         if (opts.prepareStatement) {
-          const psql = (dopts.exec && dopts.exec.sql) || esql;
-          const psname = meta.name;//conn.escape(meta.name);
-          let pso;
           rtn.unprepare = async () => {
-            if (dlt.at.stmts.has(psname)) {
-              await dlt.at.pool.query(`DEALLOCATE PREPARE ${psname}`);
-              dlt.at.stmts.delete(psname);
+            if (dlt.at.stmts.has(meta.name)) {
+              await dlt.at.pool.query(`DEALLOCATE PREPARE ${meta.name}`);
+              dlt.at.stmts.delete(meta.name);
             }
           };
-          if (!dlt.at.stmts.has(psname) || (pso = dlt.at.stmts.get(psname)).sql !== psql) {
-            // check if SQL has changed since it was prepared
-            if (dlt.at.stmts.has(psname)) await rtn.unprepare();
-            pso = { name: psname, sql: psql, psql: `PREPARE ${psname} FROM '${psql}'` };
+          if (isPrepare) {
+            pso = {
+              name: meta.name,
+              sql: esql,
+              bnames: ebndp ? ebndp : Object.getOwnPropertyNames(bndp),
+              psql: `PREPARE ${meta.name} FROM '${esql}'`
+            };
+            /*for (let i = 0; i < pso.bnames.length; i++) {
+              if (!pso.bvalues) pso.bvalues = new Array(pso.bnames.length);
+              pso.bvalues[i] = bndp[pso.bnames[i]];
+            }*/
             await conn.query(pso.psql);// psql.replace(/([^'\\]*(?:\\.[^'\\]*)*)'/g, "$1\\'")
-            pso.bnames = ebndp ? ebndp : Object.getOwnPropertyNames(bndp);
             dlt.at.stmts.set(meta.name, pso);
           }
-          rslts = await conn.query(`EXECUTE ${pso.name}${pso.bnames.length ? ` USING :${pso.bnames.join(', :')}` : ''}`, bndp);
+          rslts = await conn.query(`EXECUTE ${pso.name}${pso.bnames.length ? ` USING @${pso.bnames.join(', @')}` : ''}`, bndp);
           rtn.rows = rslts;
         } else {
           rslts = await conn.query(dopts.exec || esql, ebndp || bndp);
