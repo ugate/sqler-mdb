@@ -59,7 +59,7 @@ module.exports = class MDBDialect {
     const dlt = internal(this);
     dlt.at.track = track;
     dlt.at.driver = require('mariadb');
-    dlt.at.connections = {};
+    dlt.at.connections = new Map();
     dlt.at.stmts = new Map();
     dlt.at.opts = {
       autoCommit: true, // default autoCommit = true to conform to sqler
@@ -145,12 +145,13 @@ module.exports = class MDBDialect {
    */
   async beginTransaction(txId) {
     const dlt = internal(this);
-    if (dlt.at.connections[txId]) return;
+    if (dlt.at.connections.has(txId)) return;
     if (dlt.at.logger) {
       dlt.at.logger(`sqler-mdb: Beginning transaction "${txId}" on connection pool "${dlt.at.opts.id}"`);
     }
-    dlt.at.connections[txId] = await dlt.this.getConnection({ transactionId: txId });
-    return dlt.at.connections[txId].beginTransaction();
+    const conn = await dlt.this.getConnection({ transactionId: txId });
+    dlt.at.connections.set(txId, conn);
+    return conn.beginTransaction();
   }
 
   /**
@@ -177,7 +178,7 @@ module.exports = class MDBDialect {
       //esql = dlt.at.track.positionalBinds(sql, bndp, [], pname => `@${pname}`);
       if (named && !opts.prepareStatement) {
         esql = sql;
-      } else { // all bound via "?"
+      } else { // all bound via parameter markers
         esql = dlt.at.track.positionalBinds(sql, bndp, ebndp = []);
       }
       if (dopts.exec) dopts.exec.sql = esql;
@@ -195,25 +196,24 @@ module.exports = class MDBDialect {
         if (opts.prepareStatement) {
           rtn.unprepare = async () => {
             if (dlt.at.stmts.has(meta.name)) {
-              await dlt.at.pool.query(`DEALLOCATE PREPARE ${meta.name}`);
+              const pso = dlt.at.stmts.get(meta.name);
+              await dlt.at.pool.query(`CALL ${pso.procedure}('deallocate')`);
               dlt.at.stmts.delete(meta.name);
             }
           };
           if (isPrepare) {
             pso = {
               name: meta.name,
+              procedure: `${meta.name}_execute`,
               sql: esql,
-              bnames: ebndp ? ebndp : Object.getOwnPropertyNames(bndp),
-              psql: `PREPARE ${meta.name} FROM '${esql}'`
+              bnames: Object.getOwnPropertyNames(bndp)
             };
-            /*for (let i = 0; i < pso.bnames.length; i++) {
-              if (!pso.bvalues) pso.bvalues = new Array(pso.bnames.length);
-              pso.bvalues[i] = bndp[pso.bnames[i]];
-            }*/
+            pso.psql = preparedStmtProc(pso);
             await conn.query(pso.psql);// psql.replace(/([^'\\]*(?:\\.[^'\\]*)*)'/g, "$1\\'")
             dlt.at.stmts.set(meta.name, pso);
+            await conn.query(`CALL ${pso.procedure}('prepare')`);
           }
-          rslts = await conn.query(`EXECUTE ${pso.name}${pso.bnames.length ? ` USING @${pso.bnames.join(', @')}` : ''}`, bndp);
+          rslts = await conn.query(`CALL ${pso.procedure}('execute', JSON_OBJECT(${ebndp.map(val => conn.escape(val)).join(',')}))`);
           rtn.rows = rslts;
         } else {
           rslts = await conn.query(dopts.exec || esql, ebndp || bndp);
@@ -258,7 +258,7 @@ module.exports = class MDBDialect {
   async getConnection(opts) {
     const dlt = internal(this);
     const txId = opts.transactionId;
-    let conn = txId ? dlt.at.connections[txId] : null;
+    let conn = txId ? dlt.at.connections.get(txId) : null;
     if (!conn) {
       return dlt.at.pool.getConnection();
     }
@@ -277,6 +277,7 @@ module.exports = class MDBDialect {
       }
       if (dlt.at.pool) {
         await dlt.at.pool.end();
+        dlt.at.connections.clear();
       }
       return dlt.at.state.pending;
     } catch (err) {
@@ -324,7 +325,7 @@ function operation(dlt, name, reset, conn, opts, preop) {
       }
       await conn[name]();
       if (reset) { // not to be confused with mariadb connection.reset();
-        if (opts && opts.transactionId) delete dlt.at.connections[opts.transactionId];
+        if (opts && opts.transactionId) dlt.at.connections.delete(opts.transactionId);
         dlt.at.state.pending = 0;
       }
     } catch (err) {
@@ -347,6 +348,33 @@ function operation(dlt, name, reset, conn, opts, preop) {
     }
     return dlt.at.state.pending;
   };
+}
+
+/**
+ * Generates a stored procedure that accepts an _operation name_ and a JSON data type.
+ * The operation name can be one of the following:
+ * - `prepare` - Prepares the statement
+ * - `execute` - Executes the statement using the passed JSON
+ * - `deallocate` - Deallocates the prepared statement and drops the prepared statement procedure
+ * @param {Object} pso The prepared statement object that will be used to generate the stored procedure
+ * @returns {String} The stored procedure for the prepared statement
+ */
+function preparedStmtProc(pso) {
+  return `CREATE PROCEDURE ${pso.procedure} (IN oper VARCHAR(10), IN vars JSON)
+      BEGIN
+        IF oper = 'prepare' THEN
+          PREPARE ${pso.name} FROM '${pso.sql}';
+        ELSEIF oper = 'execute' THEN 
+          ${ pso.bnames.length ? pso.bnames.map(nm => `
+            SET @${nm} := JSON_EXTRACT(vars, '$.${nm}');`).join('') : ''
+          }
+          EXECUTE ${pso.name}${pso.bnames.length ? ` USING @${pso.bnames.join(', @')}` : ''};
+        ELSEIF oper = 'deallocate' THEN
+          DEALLOCATE PREPARE ${pso.name};
+          DROP PROCEDURE ${pso.procedure};
+        END IF;
+      END;
+    `;
 }
 
 // private mapping
