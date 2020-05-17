@@ -1,5 +1,7 @@
 'use strict';
 
+const MAX_MDB_NAME_LGTH = 64;
+
 /**
  * MariaDB + MySQL specific extension of the {@link Manager~ConnectionOptions} from the [`sqler`](https://ugate.github.io/sqler/) module.
  * @typedef {Manager~ConnectionOptions} MDBConnectionOptions
@@ -37,6 +39,9 @@
  * `driverOptions.exec.someDriverProp = mariadb.SOME_MARIADB_CONSTANT`.
  * @property {Boolean} [driverOptions.exec.namedPlaceholders=true] Truthy to use named parameters in MariaDB/MySQL or falsy to convert the named parameters into a
  * positional array of bind values.
+ * @property {String} [driverOptions.preparedStatementDatabase] The database name to use when generating prepared statements for the given execution. Since prepared
+ * statements are scoped only for a given connection and a temporary stored procedure is used to execute prepared statements, __`preparedStatementDatabase` is
+ * required when `execOpts.prepareStatement = true`.__
  */
 
 /**
@@ -165,7 +170,7 @@ module.exports = class MDBDialect {
    */
   async exec(sql, opts, frags, meta, errorOpts) {
     const dlt = internal(this);
-    let conn, bndp = {}, dopts, rslts, esql, ebndp, error;
+    let conn, bndp = {}, dopts, rslts, esql, ebndp, error, pso;
     try {
       // interpolate and remove unused binds since
       // MariaDB/MySQL only accepts the exact number of bind parameters (also, cuts down on payload bloat)
@@ -175,45 +180,68 @@ module.exports = class MDBDialect {
       dopts = opts.driverOptions || {};
       const named = dopts.exec && dopts.exec.hasOwnProperty('namedPlaceholders') ? dopts.exec.namedPlaceholders :
         dlt.at.opts.pool.namedPlaceholders;
-      //esql = dlt.at.track.positionalBinds(sql, bndp, [], pname => `@${pname}`);
-      if (named && !opts.prepareStatement) {
-        esql = sql;
-      } else { // all bound via parameter markers
-        esql = dlt.at.track.positionalBinds(sql, bndp, ebndp = []);
+      if (opts.prepareStatement) { // prepared statements always use named parameter markers
+        esql = dlt.at.track.positionalBinds(sql, bndp, [], pname => `@${pname}`);
+      } else { // use "?" parameter markers
+        esql = named ? sql : dlt.at.track.positionalBinds(sql, bndp, ebndp = []);
       }
       if (dopts.exec) dopts.exec.sql = esql;
 
-      let pso; //psname = conn.escape(meta.name);
-      const isPrepare = opts.prepareStatement && (!dlt.at.stmts.has(meta.name) || (pso = dlt.at.stmts.get(meta.name)).sql !== esql);
+      let isPrepare, psname;
+      if (opts.prepareStatement) {
+        psname = meta.name.length > MAX_MDB_NAME_LGTH ? `sqler_stmt_${Math.floor(Math.random() * 100000)}` : meta.name;
+        if (dlt.at.stmts.has(psname)) {
+          pso = dlt.at.stmts.get(psname);
+        } else {
+          isPrepare = true;
+          pso = { sql: esql };
+          // set before async in case concurrent PS invocations
+          dlt.at.stmts.set(psname, pso);
+        }
+      }
 
       const rtn = {};
 
       if (!opts.transactionId && !opts.prepareStatement && opts.type === 'READ') {
         rslts = await dlt.at.pool.query(dopts.exec || esql, ebndp || bndp);
         rtn.rows = rslts;
-      } else {
+      } else { 
         conn = await dlt.this.getConnection(opts);
         if (opts.prepareStatement) {
           rtn.unprepare = async () => {
-            if (dlt.at.stmts.has(meta.name)) {
-              const pso = dlt.at.stmts.get(meta.name);
-              await dlt.at.pool.query(`CALL ${pso.procedure}('deallocate')`);
-              dlt.at.stmts.delete(meta.name);
-            }
+            if (dlt.at.stmts.has(psname)) {
+              const pso = dlt.at.stmts.get(psname);
+              try {
+                await conn.query(`DEALLOCATE PREPARE ${pso.name}`);
+                dlt.at.stmts.delete(psname);
+                // need to drop separately since drop procedure cannot be done from within a procedure
+                await conn.query(`DROP PROCEDURE ${pso.procedure}`);
+              } finally {
+                await conn.release();
+              }
+            } else await conn.release();
           };
           if (isPrepare) {
-            pso = {
-              name: meta.name,
-              procedure: `${meta.name}_execute`,
-              sql: esql,
-              bnames: Object.getOwnPropertyNames(bndp)
-            };
+            if (!dopts.preparedStatementDatabase) {
+              throw new Error('A valid database name must be provided using "execOpts.driverOptions.preparedStatementDatabase" ' +
+                'when "execOpts.prepareStatement = true"');
+            }
+            pso.name = psname;
+            pso.procedure = `\`${dopts.preparedStatementDatabase}\`.\`${psname}_stmt\``;
+            if (pso.procedure.length > MAX_MDB_NAME_LGTH) pso.procedure = `${psname}_proc`;
+            pso.escapedSQL = conn.escape(esql); // esql.replace(/([^'\\]*(?:\\.[^'\\]*)*)'/g, "$1\\'");
+            pso.bnames = Object.getOwnPropertyNames(bndp);
             pso.psql = preparedStmtProc(pso);
-            await conn.query(pso.psql);// psql.replace(/([^'\\]*(?:\\.[^'\\]*)*)'/g, "$1\\'")
-            dlt.at.stmts.set(meta.name, pso);
-            await conn.query(`CALL ${pso.procedure}('prepare')`);
+            pso.procProm = conn.query(pso.psql);
+            await pso.procProm;
+            pso.prepareExecProm = preparedStmtProcExec(pso, conn, bndp, true);
+            rslts = await pso.prepareExecProm;
+            pso.procProm = pso.prepareExecProm = null;
+          } else {
+            if (pso.procProm) await pso.procProm;
+            if (pso.prepareExecProm) await pso.prepareExecProm;
+            rslts = await preparedStmtProcExec(pso, conn, bndp);
           }
-          rslts = await conn.query(`CALL ${pso.procedure}('execute', JSON_OBJECT(${ebndp.map(val => conn.escape(val)).join(',')}))`);
           rtn.rows = rslts;
         } else {
           rslts = await conn.query(dopts.exec || esql, ebndp || bndp);
@@ -236,10 +264,11 @@ module.exports = class MDBDialect {
       if (dlt.at.errorLogger) {
         dlt.at.errorLogger(`Failed to execute the following SQL: ${sql}`, err);
       }
-      err.sqlerMDB = dopts;
+      err.sqlerMDB = {};
+      if (pso) err.sqlerMDB.preparedStmtProc = pso.psql; 
       throw err;
     } finally {
-      if (conn) {
+      if (conn && !opts.prepareStatement) {
         try {
           await operation(dlt, 'release', false, conn, opts)();
         } catch (cerr) {
@@ -355,26 +384,38 @@ function operation(dlt, name, reset, conn, opts, preop) {
  * The operation name can be one of the following:
  * - `prepare` - Prepares the statement
  * - `execute` - Executes the statement using the passed JSON
- * - `deallocate` - Deallocates the prepared statement and drops the prepared statement procedure
+ * - `prepare_execute` - Prepares and executes the statement using the passed JSON
  * @param {Object} pso The prepared statement object that will be used to generate the stored procedure
  * @returns {String} The stored procedure for the prepared statement
  */
 function preparedStmtProc(pso) {
-  return `CREATE PROCEDURE ${pso.procedure} (IN oper VARCHAR(10), IN vars JSON)
+  return `CREATE PROCEDURE ${pso.procedure}(IN oper VARCHAR(15), IN vars JSON)
       BEGIN
-        IF oper = 'prepare' THEN
-          PREPARE ${pso.name} FROM '${pso.sql}';
-        ELSEIF oper = 'execute' THEN 
+        IF (oper = 'prepare' OR oper = 'prepare_execute') THEN
+          PREPARE ${pso.name} FROM ${pso.escapedSQL};
+        END IF;
+        IF (oper = 'execute' OR oper = 'prepare_execute') THEN 
           ${ pso.bnames.length ? pso.bnames.map(nm => `
-            SET @${nm} := JSON_EXTRACT(vars, '$.${nm}');`).join('') : ''
+            SET @${nm} := JSON_UNQUOTE(JSON_EXTRACT(vars, '$.${nm}'));`).join('') : ''
           }
-          EXECUTE ${pso.name}${pso.bnames.length ? ` USING @${pso.bnames.join(', @')}` : ''};
-        ELSEIF oper = 'deallocate' THEN
-          DEALLOCATE PREPARE ${pso.name};
-          DROP PROCEDURE ${pso.procedure};
+          EXECUTE ${pso.name};
         END IF;
       END;
     `;
+}
+
+/**
+ * Calls a prepared statement stored procedure execution 
+ * @param {Object} pso The prepared statement object that will be used to generate the stored procedure
+ * @param {Object} conn The connection
+ * @param {Object} binds The binds
+ * @param {Boolean} [prepare] Truthy to prepare the satement before execution
+ * @returns {Promise} The prepared statement procedure call promise
+ */
+function preparedStmtProcExec(pso, conn, binds, prepare) {
+  return conn.query(`CALL ${pso.procedure}('${prepare ? 'prepare_' : ''}execute', JSON_OBJECT(${
+    pso.bnames.map(name => `${conn.escape(name)},${conn.escape(binds[name])}`).join(',')
+  }))`);
 }
 
 // private mapping
