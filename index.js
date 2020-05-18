@@ -193,7 +193,7 @@ module.exports = class MDBDialect {
 
       let isPrepare, psname;
       if (opts.prepareStatement) {
-        psname = meta.name.length > MAX_MDB_NAME_LGTH ? `sqler_stmt_${Math.floor(Math.random() * 100000)}` : meta.name;
+        psname = meta.name;
         if (dlt.at.stmts.has(psname)) {
           pso = dlt.at.stmts.get(psname);
           conn = pso.conn;
@@ -230,8 +230,8 @@ module.exports = class MDBDialect {
           };
           if (isPrepare) {
             pso.name = psname;
-            pso.procedure = `\`${dopts.preparedStatementDatabase}\`.\`${psname}_stmt\``;
-            if (pso.procedure.length > MAX_MDB_NAME_LGTH) pso.procedure = `${psname}_proc`;
+            pso.shortName = pso.name.length > MAX_MDB_NAME_LGTH ? `sqler_mdb_prep_stmt${Math.floor(Math.random() * 10000)}` : pso.name;
+            pso.procedure = `\`${dopts.preparedStatementDatabase}\`.\`${pso.shortName}\``;
             pso.escapedSQL = conn.escape(esql); // esql.replace(/([^'\\]*(?:\\.[^'\\]*)*)'/g, "$1\\'");
             pso.bnames = Object.getOwnPropertyNames(bndp);
             pso.psql = preparedStmtProc(pso);
@@ -400,13 +400,13 @@ function preparedStmtProc(pso) {
   return `CREATE PROCEDURE ${pso.procedure}(IN oper VARCHAR(15), IN vars JSON)
       BEGIN
         IF (oper = 'prepare' OR oper = 'prepare_execute') THEN
-          PREPARE ${pso.name} FROM ${pso.escapedSQL};
+          PREPARE ${pso.shortName} FROM ${pso.escapedSQL};
         END IF;
         IF (oper = 'execute' OR oper = 'prepare_execute') THEN 
           ${ pso.bnames.length ? pso.bnames.map(nm => `
             SET @${nm} := JSON_UNQUOTE(JSON_EXTRACT(vars, '$.${nm}'));`).join('') : ''
           }
-          EXECUTE ${pso.name};
+          EXECUTE ${pso.shortName};
         END IF;
       END;
     `;
