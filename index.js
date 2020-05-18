@@ -248,10 +248,12 @@ module.exports = class MDBDialect {
             rslts = await preparedStmtProcExec(pso, conn, bndp);
           }
           rtn.rows = rslts;
+          rtn.raw = rslts;
         } else {
           conn = await dlt.this.getConnection(opts);
           rslts = await conn.query(dopts.exec || esql, ebndp || bndp);
           rtn.rows = rslts;
+          rtn.raw = rslts;
         }
         if (opts.transactionId) {
           if (opts.autoCommit) {
