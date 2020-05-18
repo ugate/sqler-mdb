@@ -26,10 +26,10 @@ module.exports = async function runExample(manager, connName) {
   await explicitTransactionUpdate(manager, connName, binds1, binds2, rtn);
 
   // Using a prepared statement:
-  //await preparedStatementUpdate(manager, connName, binds1, rtn);
+  await preparedStatementUpdate(manager, connName, binds1, rtn);
 
   // Using a prepared statement within an explicit transaction
-  //await preparedStatementExplicitTxUpdate(manager, connName, binds1, rtn);
+  await preparedStatementExplicitTxUpdate(manager, connName, binds1, rtn);
 
   return rtn;
 };
@@ -101,6 +101,10 @@ async function preparedStatementUpdate(manager, connName, binds, rtn) {
         // the pool just before the first SQL executes
         prepareStatement: true,
         driverOptions: {
+          // prepared statements in MySQL/MariaDB use a temporary
+          // stored procedure to execute prepared statements...
+          // in order to do so, the stored procedure needs to have
+          // a database scope defined where it will reside
           preparedStatementDatabase: 'sqlermysql'
         },
         // include the bind parameters
@@ -116,6 +120,8 @@ async function preparedStatementUpdate(manager, connName, binds, rtn) {
     if (rtn.psRslts[0] && rtn.psRslts[0].unprepare) {
       // since prepareStatement = true, we need to close the statement
       // and release the statement connection back to the pool
+      // (also drops the temporary stored procedure that executes the
+      // prepared statement)
       await rtn.psRslts[0].unprepare();
     }
   }
@@ -135,6 +141,13 @@ async function preparedStatementExplicitTxUpdate(manager, connName, binds, rtn) 
         autoCommit: false, // don't auto-commit after execution
         transactionId: txId, // ensure execution takes place within transaction
         prepareStatement: true, // ensure a prepared statement is used
+        driverOptions: {
+          // prepared statements in MySQL/MariaDB use a temporary
+          // stored procedure to execute prepared statements...
+          // in order to do so, the stored procedure needs to have
+          // a database scope defined where it will reside
+          preparedStatementDatabase: 'sqlermysql'
+        },
         binds
       });
     }

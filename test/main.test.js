@@ -46,4 +46,6 @@ lab.experiment(plan, () => {
   lab.test(`${plan}: Execution Driver Options (Alternatives)`, { timeout: TEST_TKO }, Tester.execDriverOptionsAlt);
   lab.test(`${plan}: Invalid SQL`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'invalid SQL throw' }, Tester.sqlInvalidThrow));
   lab.test(`${plan}: Invalid bind parameter`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'invalid bind param throw' }, Tester.bindsInvalidThrow));
+  lab.test(`${plan}: Invalid Prepared Statement (Missing Database Name)`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'missing DB name throw' },
+    Tester.preparedStatementInvalidThrow));
 });

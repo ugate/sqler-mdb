@@ -32,6 +32,9 @@ const MAX_MDB_NAME_LGTH = 64;
  * `binds.name = mariadb.SOME_MARIADB_CONSTANT`.
  * @typedef {Manager~ExecOptions} MDBExecOptions
  * @property {Object} [driverOptions] The `mariadb` module specific options.
+ * @property {String} [driverOptions.preparedStatementDatabase] The database name to use when generating prepared statements for the given execution. Since prepared
+ * statements are scoped only for a given connection and a temporary stored procedure is used to execute prepared statements, __`preparedStatementDatabase` is
+ * required when `execOpts.prepareStatement = true`.__
  * @property {Object} [driverOptions.exec] The options passed into execution/query functions provided by the `mariadb` module performed during {@link Manager.exec}.
  * When a value is a string surrounded by `${}`, it will be assumed to be a _constant_ property that resides on the `mariadb` module and will be interpolated
  * accordingly.
@@ -39,9 +42,6 @@ const MAX_MDB_NAME_LGTH = 64;
  * `driverOptions.exec.someDriverProp = mariadb.SOME_MARIADB_CONSTANT`.
  * @property {Boolean} [driverOptions.exec.namedPlaceholders=true] Truthy to use named parameters in MariaDB/MySQL or falsy to convert the named parameters into a
  * positional array of bind values.
- * @property {String} [driverOptions.preparedStatementDatabase] The database name to use when generating prepared statements for the given execution. Since prepared
- * statements are scoped only for a given connection and a temporary stored procedure is used to execute prepared statements, __`preparedStatementDatabase` is
- * required when `execOpts.prepareStatement = true`.__
  */
 
 /**
@@ -181,6 +181,10 @@ module.exports = class MDBDialect {
       const named = dopts.exec && dopts.exec.hasOwnProperty('namedPlaceholders') ? dopts.exec.namedPlaceholders :
         dlt.at.opts.pool.namedPlaceholders;
       if (opts.prepareStatement) { // prepared statements always use named parameter markers
+        if (!dopts.preparedStatementDatabase) {
+          throw new Error('A valid database name must be provided using "execOpts.driverOptions.preparedStatementDatabase" ' +
+            'when "execOpts.prepareStatement = true"');
+        }
         esql = dlt.at.track.positionalBinds(sql, bndp, [], pname => `@${pname}`);
       } else { // use "?" parameter markers
         esql = named ? sql : dlt.at.track.positionalBinds(sql, bndp, ebndp = []);
@@ -192,11 +196,15 @@ module.exports = class MDBDialect {
         psname = meta.name.length > MAX_MDB_NAME_LGTH ? `sqler_stmt_${Math.floor(Math.random() * 100000)}` : meta.name;
         if (dlt.at.stmts.has(psname)) {
           pso = dlt.at.stmts.get(psname);
+          conn = pso.conn;
         } else {
           isPrepare = true;
           pso = { sql: esql };
           // set before async in case concurrent PS invocations
           dlt.at.stmts.set(psname, pso);
+          pso.connProm = dlt.this.getConnection(opts);  // other PS exec need access to promise in order to wait for connection access
+          pso.conn = conn = await pso.connProm; // wait for the initial PS to establish a connection (other PS exec need access to promise)
+          pso.connProm = null; // reset promise once it completes
         }
       }
 
@@ -205,52 +213,50 @@ module.exports = class MDBDialect {
       if (!opts.transactionId && !opts.prepareStatement && opts.type === 'READ') {
         rslts = await dlt.at.pool.query(dopts.exec || esql, ebndp || bndp);
         rtn.rows = rslts;
-      } else { 
-        conn = await dlt.this.getConnection(opts);
+      } else {
         if (opts.prepareStatement) {
           rtn.unprepare = async () => {
             if (dlt.at.stmts.has(psname)) {
               const pso = dlt.at.stmts.get(psname);
               try {
-                await conn.query(`DEALLOCATE PREPARE ${pso.name}`);
+                await pso.conn.query(`DEALLOCATE PREPARE ${pso.name}`);
                 dlt.at.stmts.delete(psname);
                 // need to drop separately since drop procedure cannot be done from within a procedure
-                await conn.query(`DROP PROCEDURE ${pso.procedure}`);
+                await pso.conn.query(`DROP PROCEDURE ${pso.procedure}`);
               } finally {
-                await conn.release();
+                if (!opts.transactionId) await pso.conn.release();
               }
-            } else await conn.release();
+            } else if (!opts.transactionId) await conn.release();
           };
           if (isPrepare) {
-            if (!dopts.preparedStatementDatabase) {
-              throw new Error('A valid database name must be provided using "execOpts.driverOptions.preparedStatementDatabase" ' +
-                'when "execOpts.prepareStatement = true"');
-            }
             pso.name = psname;
             pso.procedure = `\`${dopts.preparedStatementDatabase}\`.\`${psname}_stmt\``;
             if (pso.procedure.length > MAX_MDB_NAME_LGTH) pso.procedure = `${psname}_proc`;
             pso.escapedSQL = conn.escape(esql); // esql.replace(/([^'\\]*(?:\\.[^'\\]*)*)'/g, "$1\\'");
             pso.bnames = Object.getOwnPropertyNames(bndp);
             pso.psql = preparedStmtProc(pso);
-            pso.procProm = conn.query(pso.psql);
-            await pso.procProm;
-            pso.prepareExecProm = preparedStmtProcExec(pso, conn, bndp, true);
-            rslts = await pso.prepareExecProm;
-            pso.procProm = pso.prepareExecProm = null;
+            pso.procProm = conn.query(pso.psql); // prepare/exec PS (other exec need access to wait for proc to be created)
+            await pso.procProm; // wait for the PS stored proc to be created
+            pso.prepareExecProm = preparedStmtProcExec(pso, conn, bndp, true);  // wait for the initial PS stored proc to be created/executed
+            pso.procProm = pso.prepareExecProm = null; // reset promises once they completed
           } else {
-            if (pso.procProm) await pso.procProm;
-            if (pso.prepareExecProm) await pso.prepareExecProm;
+            pso = dlt.at.stmts.get(psname);
+            if (pso.connProm) await pso.connProm; // wait for the initial PS to establish a connection
+            if (pso.procProm) await pso.procProm; // wait for the initial PS stored proc to be created
+            if (pso.prepareExecProm) await pso.prepareExecProm; // wait for the initial PS to be prepared
+            conn = pso.conn;
             rslts = await preparedStmtProcExec(pso, conn, bndp);
           }
           rtn.rows = rslts;
         } else {
+          conn = await dlt.this.getConnection(opts);
           rslts = await conn.query(dopts.exec || esql, ebndp || bndp);
           rtn.rows = rslts;
         }
         if (opts.transactionId) {
           if (opts.autoCommit) {
             // MariaDB/MySQL has no option to autocommit during SQL execution
-            await operation(dlt, 'commit', false, conn, opts)();
+            await operation(dlt, 'commit', false, conn, opts, rtn.unprepare)();
           } else {
             dlt.at.state.pending++;
             rtn.commit = operation(dlt, 'commit', true, conn, opts, rtn.unprepare);
@@ -268,7 +274,8 @@ module.exports = class MDBDialect {
       if (pso) err.sqlerMDB.preparedStmtProc = pso.psql; 
       throw err;
     } finally {
-      if (conn && !opts.prepareStatement) {
+      // transactions/prepared statements need the connection to remain open until commit/rollback/unprepare
+      if (conn && !opts.transactionId && !opts.prepareStatement) {
         try {
           await operation(dlt, 'release', false, conn, opts)();
         } catch (cerr) {
@@ -385,6 +392,7 @@ function operation(dlt, name, reset, conn, opts, preop) {
  * - `prepare` - Prepares the statement
  * - `execute` - Executes the statement using the passed JSON
  * - `prepare_execute` - Prepares and executes the statement using the passed JSON
+ * @private
  * @param {Object} pso The prepared statement object that will be used to generate the stored procedure
  * @returns {String} The stored procedure for the prepared statement
  */
@@ -406,6 +414,7 @@ function preparedStmtProc(pso) {
 
 /**
  * Calls a prepared statement stored procedure execution 
+ * @private
  * @param {Object} pso The prepared statement object that will be used to generate the stored procedure
  * @param {Object} conn The connection
  * @param {Object} binds The binds

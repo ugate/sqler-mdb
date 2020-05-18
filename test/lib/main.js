@@ -208,6 +208,17 @@ class Tester {
     });
   }
 
+  static async preparedStatementInvalidThrow() {
+    const date = datify();
+    return priv.mgr.db[priv.vendor].create.table.rows({
+      prepareStatement: true,
+      binds: {
+        id: 500, name: 'SHOULD NEVER GET INSERTED', created: date, updated: date,
+        id2: 500, name2: 'SHOULD NEVER GET INSERTED', report2: Buffer.from('INVALID'), created2: date, updated2: date
+      }
+    });
+  }
+
   //====================== Configurations ======================
 
   static async initThrow() {
