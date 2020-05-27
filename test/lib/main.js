@@ -223,7 +223,12 @@ class Tester {
 
   static async initThrow() {
     // need to set a conf override to prevent overwritting of privateConf.username
-    const conf = getConf({ pool: null });
+    const conf = getConf({
+      pool: (prop, conn) => {
+        conn[prop] = conn[prop] || {};
+        conn[prop].timeout = 1000; // should have timout less than test timeout
+      }
+    });
     conf.univ.db[priv.vendor].username = 'invalid';
     conf.univ.db[priv.vendor].password = 'invalid';
     const mgr = new Manager(conf, priv.cache, priv.mgrLogit || generateTestAbyssLogger);
