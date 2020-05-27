@@ -212,7 +212,6 @@ module.exports = class MDBDialect {
 
       if (!opts.transactionId && !opts.prepareStatement && opts.type === 'READ') {
         rslts = await dlt.at.pool.query(dopts.exec || esql, ebndp || bndp);
-        rtn.rows = rslts;
       } else {
         if (opts.prepareStatement) {
           rtn.unprepare = async () => {
@@ -247,13 +246,9 @@ module.exports = class MDBDialect {
             conn = pso.conn;
             rslts = await preparedStmtProcExec(pso, conn, bndp);
           }
-          rtn.rows = rslts;
-          rtn.raw = rslts;
         } else {
           conn = await dlt.this.getConnection(opts);
           rslts = await conn.query(dopts.exec || esql, ebndp || bndp);
-          rtn.rows = rslts;
-          rtn.raw = rslts;
         }
         if (opts.transactionId) {
           if (opts.autoCommit) {
@@ -266,6 +261,8 @@ module.exports = class MDBDialect {
           }
         }
       }
+      rtn.rows = rslts;
+      rtn.raw = rslts;
       return rtn;
     } catch (err) {
       error = err;
