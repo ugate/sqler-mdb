@@ -155,8 +155,8 @@ module.exports = class MDBDialect {
       dlt.at.logger(`sqler-mdb: Beginning transaction "${txId}" on connection pool "${dlt.at.opts.id}"`);
     }
     const conn = await dlt.this.getConnection({ transactionId: txId });
+    await conn.beginTransaction();
     dlt.at.connections.set(txId, conn);
-    return conn.beginTransaction();
   }
 
   /**
