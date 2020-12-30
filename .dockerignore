@@ -1,0 +1,9 @@
+.dockerignore
+Dockerfile*
+docker-compose*
+#.git*
+.vscode
+.travis*
+node_modules
+npm-debug.log
+docs

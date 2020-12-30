@@ -2,8 +2,8 @@
   "univ": {
     "db": {
       "mdb": {
-        "host": "localhost",
-        "username":"admin",
+        "host": "127.0.0.1",
+        "username":"root",
         "password": "my3qllocal"
       }
     }

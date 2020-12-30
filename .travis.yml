@@ -4,30 +4,27 @@ os: linux
 dist: bionic
 # npm version patch -m "%s Release"
 language: node_js
-node_js:
-  - "lts/*"
-#services:
-#  - mysql
-#  - postgresql
-env:
-  - REPO_VER=v1.5.5 MYSQL_MAJOR=8 MYSQL_MINOR=14 MYSQL_PATCH=1
+services:
+  - docker
 before_install:
-  - wget -O install-mysql.sh https://raw.githubusercontent.com/ugate/repo/$REPO_VER/mysql/install.sh
-  - bash ./install-mysql.sh
-  - rm -rf install-mysql.sh
+  - docker-compose build sqler_dialect
+  - docker-compose up -d
+  - docker logs --details sqler_db
+  - docker logs --details sqler_dialect
+  - docker ps -a
 branches:
   only:
     - master
     - "/v*/"
 script:
 # - printenv
-  - "npm test"
+  - "docker exec -it sqler_dialect bash \"npm test\""
 deploy:
   #edge: true # avoid dpl v2 missing api_token
   - provider: script
     skip_cleanup: true # deprecated, use cleanup with new dpl ver
     cleanup: false
-    script: npm run jsdocp-deploy
+    script: "docker exec -it sqler_dialect bash \"npm run jsdocp-deploy\""
     on:
       tags: true # only on tagging commit
       branch:
