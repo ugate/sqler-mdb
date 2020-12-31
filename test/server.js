@@ -4,12 +4,12 @@ const http = require('http');
 const Fs = require('fs');
 const Path = require('path');
 
-const hostname = '127.0.0.1';
-const port = process.env.SQLER_DOCS_PORT;
+const hostname = '0.0.0.0';
+const port = 80;
 
 const server = http.createServer((req, res) => {
   const dir = Path.resolve(__dirname, '../');
-  const url = req.url === '/' ? '/index.html' : req.url.replace(/\./g, '');
+  const url = req.url === '/' ? '/index.html' : req.url.replace(/\.\.\//g, '');
   const file = `${dir}/docs${url}`;
 
   console.log(`Serving docs request: ${req.url} from: ${file}`);
