@@ -1,9 +1,10 @@
-version: '3.8'
-x-enviro:
-  &env-vars
+version: '3.9'
+x-env: &env-vars
   MYSQL_ROOT_PASSWORD: my3qllocal
   MYSQL_DATABASE: sqlermysql
   MYSQL_PORT: 3306
+x-svr: &svr-vars
+  SQLER_DOCS_PORT: &svr-port 4001
 services:
   # MySQL: https://hub.docker.com/_/mysql
   sqler_db:
@@ -17,9 +18,14 @@ services:
   # NodeJS for sqler dialect testing
   sqler_dialect:
     container_name: sqler_dialect
+    depends_on:
+      - sqler_db
     build:
       context: .
       dockerfile: Dockerfile
-    environment:
-      <<: *env-vars
+      network: host
     network_mode: host
+    environment:
+      <<: [ *env-vars, *svr-vars ]
+    volumes:
+      - ./docs:/home/node/app/docs

@@ -10,6 +10,9 @@ WORKDIR /home/node/app
 
 COPY . .
 
-# RUN ls -al /home/node/app
+RUN mkdir -p docs && \
+    echo "registry=https://registry.npmjs.org/" > ./.npmrc && \
+    npm install && \
+    ls -al /home/node/app
 
 CMD [ "npm", "run", "test-docker" ]

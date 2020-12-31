@@ -92,7 +92,7 @@ module.exports = class MDBDialect {
     if (priv.host) dlt.at.opts.pool.host = priv.host;
     if (priv.hasOwnProperty('port')) dlt.at.opts.pool.port = priv.port;
     dlt.at.opts.pool.user = priv.username;
-    dlt.at.opts.pool.password = priv.password;console.log('PRIVATE ======>>>>>>>>>>>>>>>>>>>>>', priv)
+    dlt.at.opts.pool.password = priv.password;
 
     if (connConf.pool) {
       if (connConf.pool.hasOwnProperty('min')) dlt.at.opts.pool.minimumIdle = connConf.pool.min;

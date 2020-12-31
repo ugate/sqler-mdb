@@ -1,17 +1,20 @@
 'use strict';
 
 const http = require('http');
-const fs = require('fs');
+const Fs = require('fs');
+const Path = require('path');
 
 const hostname = '127.0.0.1';
-const port = 9099;
+const port = process.env.SQLER_DOCS_PORT;
 
 const server = http.createServer((req, res) => {
-  const file = `${__dirname}/docs${req.url}`;
+  const dir = Path.resolve(__dirname, '../');
+  const url = req.url === '/' ? '/index.html' : req.url.replace(/\./g, '');
+  const file = `${dir}/docs${url}`;
 
-  console.log(`Serving docs request: ${__dirname}/docs${req.url}`);
+  console.log(`Serving docs request: ${req.url} from: ${file}`);
 
-  fs.readFile(file, (err, data) => {
+  Fs.readFile(file, (err, data) => {
     if (err) {
       console.error(`Failed to find docs file: ${file}`, err);
       res.writeHead(404);
@@ -24,5 +27,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, hostname, () => {
-  console.log(`Docs server running at http://${hostname}:${port}/`);
+  console.log(`Serving docs at http://${hostname}:${port}/`);
 });
