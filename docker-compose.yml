@@ -13,7 +13,12 @@ services:
     environment:
       <<: *env-vars
     networks:
-      - sqler
+      - app
+    healthcheck:
+      # test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", '-p$$MYSQL_ROOT_PASSWORD' ]
+      test: out=$$(mysqladmin ping -h localhost -P 3306 -u root --password=$$MYSQL_ROOT_PASSWORD 2>&1); echo $$out | grep 'mysqld is alive' || { echo $$out; exit 1; }
+      timeout: 20s
+      retries: 10
   # NodeJS for sqler dialect testing
   sqler_dialect:
     container_name: sqler_dialect
@@ -22,11 +27,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      network: host
       args:
         <<: *env-vars
+    links:
+      - "sqler_db:sqler_database"
     networks:
-      - sqler
+      - app
+    healthcheck:
+      test: curl --fail http://localhost:80 || exit 1
+      timeout: 20s
+      retries: 10
     ports:
       - 4001:80
     restart: unless-stopped
@@ -35,6 +45,6 @@ services:
     volumes:
       - ./docs:/home/node/app/docs
 networks:
-  sqler:
+  app:
     driver: bridge
-    name: sqler_net
+    name: sqler_app

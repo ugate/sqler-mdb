@@ -1,7 +1,8 @@
 .dockerignore
 Dockerfile*
 docker-compose*
-.git*
+# need git to generate docs, this is okay since the images will remain on the CI server or local dev machine
+#.git*
 .vscode
 .travis*
 package-lock.json

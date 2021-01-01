@@ -2,7 +2,7 @@
   "univ": {
     "db": {
       "mdb": {
-        "host": "127.0.0.1",
+        "host": "sqler_db",
         "username":"root",
         "password": "my3qllocal"
       }

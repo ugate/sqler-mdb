@@ -331,11 +331,12 @@ class Tester {
 
   static async hostPortSwap() {
     // need to set a conf override to prevent overwritting of privateConf properties for other tests
-    const conf = getConf({ pool: null });
+    const conf = getConf({ pool: null }), realConf = getConf();
     if (conf.univ.db[test.vendor].host) {
-      delete conf.univ.db[test.vendor].host;
+      //delete conf.univ.db[test.vendor].host;
+      conf.univ.db[test.vendor].host = 'sqler_database'; // need to use alias hostname from docker "links"
     } else {
-      conf.univ.db[test.vendor].host = "localhost";
+      conf.univ.db[test.vendor].host = realConf.univ.db[test.vendor].host;
     }
     if (conf.univ.db[test.vendor].hasOwnProperty('port')) {
       delete conf.univ.db[test.vendor].port;
@@ -385,9 +386,11 @@ function getConf(overrides) {
     conf.mainPath = 'test';
     conf.db.dialects.mdb = './test/dialects/test-dialect.js';
     if (!conf.univ.db.mdb.host || conf.univ.db.mdb.host === 'localhost' || conf.univ.db.mdb.host === '127.0.0.1') {
-      //if (!conf.univ.db.mdb.host) conf.univ.db.mdb.host = Os.hostname();
-      // NOTE : For simplicity, tests for localhost require a user to be setup w/o a password
-      //delete conf.univ.db.mdb.password;
+      if (process.env.SQLER_TEST_NO_PASSWORD) {
+        //if (!conf.univ.db.mdb.host) conf.univ.db.mdb.host = Os.hostname();
+        // NOTE : For simplicity, tests for localhost require a user to be setup w/o a password
+        delete conf.univ.db.mdb.password;
+      }
     }
   }
   if (overrides) {
