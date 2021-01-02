@@ -18,19 +18,20 @@ before_install:
   - docker logs --details sqler_db
   - docker logs --details sqler_dialect
   - docker ps -a
+  - chmod +x test/run.sh
 branches:
   only:
     - master
     - "/v*/"
 script:
 # - printenv
-  - "test/run.sh sqler_db sqler_dialect \"npm test\""
+  - test/run.sh sqler_db sqler_dialect "npm test"
 deploy:
   #edge: true # avoid dpl v2 missing api_token
   - provider: script
     skip_cleanup: true # deprecated, use cleanup with new dpl ver
     cleanup: false
-    script: "test/run.sh sqler_db sqler_dialect \"npm run jsdocp-deploy\""
+    script: test/run.sh sqler_db sqler_dialect "npm run jsdocp-deploy"
     on:
       tags: true # only on tagging commit
       branch:

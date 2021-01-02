@@ -7,7 +7,7 @@
 attempt=0
 health1=checking
 health2=checking
-while [ $attempt -le 59 ]; do
+while [ $attempt -le 79 ]; do
   attempt=$(( $attempt + 1 ))
   echo "Waiting for docker healthcheck on services $1 ($health1) and $2 ($health2): attempt: $attempt..."
   if [[ health1 != "healthy" ]]; then
@@ -24,5 +24,9 @@ while [ $attempt -le 59 ]; do
   fi
   sleep 2
 done
+if [[ $health1 != "healthy" && $health2 != "healthy"  ]]; then
+  echo "Failed to wait for docker healthcheck on services $1 ($health1) and $2 ($health2) after $attempt attempts"
+  exit 1
+fi
 # while [ "`docker inspect -f {{.State.Health.Status}} $1`" != "healthy" ]; do sleep 2; done
 # while [ "`docker inspect -f {{.State.Health.Status}} $2`" != "healthy" ]; do sleep 2; done
