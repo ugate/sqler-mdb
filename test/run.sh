@@ -24,8 +24,10 @@ while [ $attempt -le 79 ]; do
   fi
   sleep 2
 done
-if [[ $health1 != "healthy" && $health2 != "healthy"  ]]; then
+if [[ $health1 != "healthy" || $health2 != "healthy"  ]]; then
   echo "Failed to wait for docker healthcheck on services $1 ($health1) and $2 ($health2) after $attempt attempts"
+  docker logs --details $1
+  docker logs --details $2
   exit 1
 fi
 # while [ "`docker inspect -f {{.State.Health.Status}} $1`" != "healthy" ]; do sleep 2; done

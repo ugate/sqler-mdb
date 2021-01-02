@@ -15,8 +15,6 @@ before_install:
   - sudo mv docker-compose /usr/local/bin
   - docker-compose build sqler_dialect
   - docker-compose up -d
-  - docker logs --details sqler_db
-  - docker logs --details sqler_dialect
   - docker ps -a
   - chmod +x test/run.sh
 branches:
