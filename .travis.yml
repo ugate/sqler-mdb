@@ -24,13 +24,13 @@ branches:
     - "/v*/"
 script:
 # - printenv
-  - "docker exec -it sqler_dialect bash \"npm test\""
+  - "test/run.sh sqler_db sqler_dialect \"npm test\""
 deploy:
   #edge: true # avoid dpl v2 missing api_token
   - provider: script
     skip_cleanup: true # deprecated, use cleanup with new dpl ver
     cleanup: false
-    script: "docker exec -it sqler_dialect bash \"npm run jsdocp-deploy\""
+    script: "test/run.sh sqler_db sqler_dialect \"npm run jsdocp-deploy\""
     on:
       tags: true # only on tagging commit
       branch:

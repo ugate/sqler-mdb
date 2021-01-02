@@ -4,13 +4,17 @@ All tests are ran within Docker containers via `docker-compose.yml`.
 ## Production
 From the root of the project, build the test docker image, run docker-compose and run the test suite using the following commands:
 ```sh
+# typically, the following will be performed in a CI environment
+# rather than directly from a command line
 docker-compose build sqler_dialect
 docker-compose up -d
 docker logs --details sqler_db
 docker logs --details sqler_dialect
 docker ps -a
-# run the test suite
-docker exec -it sqler_dialect bash "npm test"
+# run the test suite... docker exec -it sqler_dialect bash "npm test"
+source test/run.sh sqler_db sqler_dialect "npm test"
+# generate/deploy the docs... docker exec -it sqler_dialect bash "npm run jsdoc-deploy"
+source test/run.sh sqler_db sqler_dialect "npm run jsdocp-deploy"
 ```
 
 ## Development
