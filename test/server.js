@@ -6,11 +6,17 @@ const Path = require('path');
 
 const hostname = '0.0.0.0';
 const port = 80;
+const dir = Path.resolve(__dirname, '../');
 
 const server = http.createServer((req, res) => {
-  const dir = Path.resolve(__dirname, '../');
+  if (req.url === '/healthcheck') {
+    res.writeHead(200);
+    res.end('healthy');
+    return;
+  }
+
   const url = req.url === '/' ? '/index.html' : req.url.replace(/\.\.\//g, '');
-  const file = `${dir}/docs${url}`;
+  const file = Path.join(dir, 'docs', url);
 
   console.log(`Serving docs request: ${req.url} from: ${file}`);
 
