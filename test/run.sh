@@ -27,10 +27,9 @@ GITHUB_TOKEN="$GITHUB_TOKEN"
 NPM_TOKEN="$NPM_TOKEN"
 EOF
 
-      cat ~/.npmrc
       CMD="npm run jsdocp-deploy"
-      docker exec -it $2 bash -c 'echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > .npmrc'
-      docker exec -it $2 bash -c 'cat .npmrc'
+      docker exec -it $2 bash -c 'echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc'
+      #docker exec -it $2 bash -c 'cat .npmrc'
       #docker exec -it $2 bash -c "npm config set '//registry.npmjs.org/:_authToken' \"${NPM_TOKEN}\" >&2"
       #docker exec -it $2 bash -c "$CMD"
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\"" >&2; rm .env; exit 1; }
