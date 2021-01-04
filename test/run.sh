@@ -28,14 +28,18 @@ NPM_TOKEN="$NPM_TOKEN"
 EOF
 
       CMD="npm run jsdocp-deploy"
-      docker exec -it $2 bash -c '[[ -z "$GITHUB_TOKEN" ]] && { echo "Missing GITHUB_TOKEN!!!" >&2; exit 1; }'
-      docker exec -it $2 bash -c "curl --fail https://github.com/ugate/sqler-mdb"
+      docker exec -it $2 bash -c '[[ -z "$GITHUB_TOKEN" ]] && { echo "Missing GITHUB_TOKEN" >&2; exit 1; }'
+      [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Missing GITHUB_TOKEN env var in container" >&2; rm .env; exit 1; }
+      #docker exec -it $2 bash -c "curl --fail https://github.com/ugate/sqler-mdb"
       docker exec -it $2 bash -c "$CMD"
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\"" >&2; rm .env; exit 1; }
 
       CMD="npm publish"
+      docker exec -it $2 bash -c '[[ -z "$NPM_TOKEN" ]] && { echo "Missing NPM_TOKEN" >&2; exit 1; }'
+      [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Missing GITHUB_TOKEN env var in container" >&2; rm .env; exit 1; }
       docker exec -it $2 bash -c 'echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc'
-      docker exec -it $2 bash -c "curl --fail https://registry.npmjs.org/sqler-mdb"
+      [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Failed to write .npmrc" >&2; rm .env; exit 1; }
+      #docker exec -it $2 bash -c "curl --fail https://registry.npmjs.org/sqler-mdb"
       docker exec -it $2 bash -c "$CMD"
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\"" >&2; rm .env; exit 1; }
 
