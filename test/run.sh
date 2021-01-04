@@ -15,11 +15,24 @@ while [ $attempt -le 79 ]; do
   fi
   if [[ $health2 != "healthy" ]]; then
     health2=$(docker inspect -f {{.State.Health.Status}} $2)
-  fi 
+  fi
   if [[ $health1 == "healthy" && $health2 == "healthy"  ]]; then
     echo "Docker healthcheck on services $1 ($health1) and $2 ($health2) - executing: $3"
-    docker exec -it $2 bash -c "$3"
-    [[ $? != 0 ]] && { echo "Failed to execute \"$3\" in docker container \"$2\"" >&2; exit 1; }
+    if [[ $3 == 'npm_deploy' ]]; then
+      [[ -z "$GITHUB_TOKEN" ]] && { echo "Missing GITHUB_TOKEN. Failed to \"$3\" in docker container \"$2\"" >&2; exit 1; }
+      [[ -z "$NPM_TOKEN" ]] && { echo "Missing NPM_TOKEN. Failed to \"$3\" in docker container \"$2\"" >&2; exit 1; }
+
+cat <<EOF > .env
+GITHUB_TOKEN="$GITHUB_TOKEN"
+NPM_TOKEN="$NPM_TOKEN"
+EOF
+      CMD="npm run jsdocp-deploy"
+      docker exec -it $2 bash -c "npm run jsdocp-deploy"
+      [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\"" >&2; rm .env; exit 1; }
+    else
+      docker exec -it $2 bash -c "$3"
+      [[ $? != 0 ]] && { echo "Failed to execute \"$3\" in docker container \"$2\"" >&2; exit 1; }
+    fi
     break
   fi
   sleep 2

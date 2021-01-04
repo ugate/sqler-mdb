@@ -2,8 +2,7 @@
 os: linux
 # linux dist that includes C++ compiler needed for native node modules
 dist: bionic
-# npm version patch -m "%s Release"
-language: node_js
+language: minimal
 services:
   - docker
 env:
@@ -29,7 +28,7 @@ deploy:
   - provider: script
     skip_cleanup: true # deprecated, use cleanup with new dpl ver
     cleanup: false
-    script: test/run.sh sqler_db sqler_dialect "npm run jsdocp-deploy"
+    script: source test/run.sh sqler_db sqler_dialect npm_deploy
     on:
       tags: true # only on tagging commit
       branch:
