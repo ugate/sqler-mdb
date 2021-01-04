@@ -29,6 +29,7 @@ EOF
 
       CMD="npm run jsdocp-deploy"
       docker exec -it $2 bash -c '[[ -z "$GITHUB_TOKEN" ]] && { echo "Missing GITHUB_TOKEN!!!" >&2; exit 1; }'
+      docker exec -it $2 bash -c "curl --fail https://github.com/ugate/sqler-mdb"
       docker exec -it $2 bash -c "$CMD"
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\"" >&2; rm .env; exit 1; }
 
