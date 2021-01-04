@@ -28,17 +28,17 @@ deploy:
   - provider: script
     skip_cleanup: true # deprecated, use cleanup with new dpl ver
     cleanup: false
-    script: source test/run.sh sqler_db sqler_dialect npm_deploy
+    script: test/run.sh sqler_db sqler_dialect npm_deploy
     on:
       tags: true # only on tagging commit
       branch:
         - /v(\d+\.)?(\d+\.)?(\*|\d+)$/
-  - provider: npm
-    skip_cleanup: false # deprecated, use cleanup with new dpl ver
-    cleanup: true
-    email: "ugate.public@gmail.com"
-    api_token: $NPM_TOKEN  # Set in the settings page of your repository, as a secure variable
-    on:
-      tags: true # only on tagging commit
-      branch:
-        - /v(\d+\.)?(\d+\.)?(\*|\d+)$/
+  # - provider: npm
+  #   skip_cleanup: false # deprecated, use cleanup with new dpl ver
+  #   cleanup: true
+  #   email: "ugate.public@gmail.com"
+  #   api_token: $NPM_TOKEN  # Set in the settings page of your repository, as a secure variable
+  #   on:
+  #     tags: true # only on tagging commit
+  #     branch:
+  #       - /v(\d+\.)?(\d+\.)?(\*|\d+)$/
