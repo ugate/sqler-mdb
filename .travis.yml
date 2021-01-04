@@ -24,15 +24,21 @@ script:
 # - printenv
   - test/run.sh sqler_db sqler_dialect "npm test"
 deploy:
-  #edge: true # avoid dpl v2 missing api_token
   - provider: script
-    skip_cleanup: true # deprecated, use cleanup with new dpl ver
-    cleanup: false
     script: test/run.sh sqler_db sqler_dialect npm_deploy
     on:
       tags: true # only on tagging commit
       branch:
         - /v(\d+\.)?(\d+\.)?(\*|\d+)$/
+  #edge: true # avoid dpl v2 missing api_token
+  # - provider: script
+  #   skip_cleanup: true # deprecated, use cleanup with new dpl ver
+  #   cleanup: false
+  #   script: npm run jsdocp-deploy
+  #   on:
+  #     tags: true # only on tagging commit
+  #     branch:
+  #       - /v(\d+\.)?(\d+\.)?(\*|\d+)$/
   # - provider: npm
   #   skip_cleanup: false # deprecated, use cleanup with new dpl ver
   #   cleanup: true
