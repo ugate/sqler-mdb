@@ -25,6 +25,8 @@ script:
   - test/run.sh sqler_db sqler_dialect "npm test"
 deploy:
   - provider: script
+    skip_cleanup: true # deprecated, use cleanup with new dpl ver
+    cleanup: false
     script: test/run.sh sqler_db sqler_dialect npm_deploy
     on:
       tags: true # only on tagging commit
