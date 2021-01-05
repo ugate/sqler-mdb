@@ -32,7 +32,6 @@ services:
       dockerfile: Dockerfile.ci
       args:
         <<: *env-vars
-        <<: *env-tokens
     links:
       - "sqler_db:sqler_database"
     networks:
@@ -45,7 +44,7 @@ services:
       - 4001:80
     restart: unless-stopped
     environment:
-      <<: [ *env-vars ]
+      <<: [ *env-vars, *env-tokens ]
     volumes:
       - ./docs:/home/node/app/docs
 networks:
