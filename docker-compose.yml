@@ -3,6 +3,9 @@ x-env: &env-vars
   MYSQL_ROOT_PASSWORD: my3qllocal
   MYSQL_DATABASE: sqlermysql
   MYSQL_PORT: 3306
+x-env-sqler: &env-tokens
+  GITHUB_TOKEN: ${GITHUB_TOKEN}
+  NPM_TOKEN: ${NPM_TOKEN}
 services:
   # MySQL: https://hub.docker.com/_/mysql
   sqler_db:
@@ -29,6 +32,7 @@ services:
       dockerfile: Dockerfile.ci
       args:
         <<: *env-vars
+        <<: *env-tokens
     links:
       - "sqler_db:sqler_database"
     networks:
