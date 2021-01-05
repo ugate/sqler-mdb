@@ -3,7 +3,8 @@
 ##############################################################################################################################
 # $1 Docker container name that will wait for a "healthy" healthcheck (required)
 # $2 Docker container name that will wait for a "healthy" healthcheck and will be used to run the execution command (required)
-# $3 The actual execution command that will be ran ran (required)
+# $3 The actual execution command that will be ran (required). When "npm_deploy", all tokens will be included in execution of
+#     "npm run jsdoc-deploy" and "npm publish"
 attempt=0
 health1=checking
 health2=checking
@@ -23,7 +24,7 @@ while [ $attempt -le 79 ]; do
       [[ -z "$NPM_TOKEN" ]] && { echo "Missing NPM_TOKEN. Failed to \"$3\" in docker container \"$2\"" >&2; exit 1; }
       # ensure the secret tokens are available
       ENV_PATH="test_env"
-      printf "GITHUB_TOKEN=$GITHUB_TOKEN\nNPM_TOKEN=$NPM_TOKEN >> $ENV_PATH"
+      printf "GITHUB_TOKEN=$GITHUB_TOKEN\nNPM_TOKEN=$NPM_TOKEN" >> $ENV_PATH
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Failed to write environment to \"$ENV_PATH\"" >&2; exit 1; }
 
       CMD="npm run jsdocp-deploy"
