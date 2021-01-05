@@ -25,19 +25,19 @@ while [ $attempt -le 79 ]; do
 
       CMD="npm run jsdocp-deploy"
       #docker exec -it $2 bash -c '[[ -z "$GITHUB_TOKEN" ]] && { echo "Missing GITHUB_TOKEN" >&2; exit 1; }'
-      docker exec -it $2 bash -c '[[ -n "$GITHUB_TOKEN" ]] && { echo "Found GITHUB_TOKEN"; }'
       #[[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Missing GITHUB_TOKEN env var in container" >&2; exit 1; }
+      docker exec -it $2 bash -c '[[ -n "$GITHUB_TOKEN" ]] && { echo "GITHUB_TOKEN found"; } || echo "GITHUB_TOKEN not found!"'
       docker exec -it $2 bash -c "$CMD"
-      [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\"" >&2; rm $ENV_PATH; exit 1; }
+      [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\"" >&2; exit 1; }
 
       CMD="npm publish"
-      docker exec -it $2 bash -c '[[ -z "$NPM_TOKEN" ]] && { echo "Missing NPM_TOKEN" >&2; exit 1; }'
-      [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Missing NPM_TOKEN env var in container" >&2; exit 1; }
-      #docker exec -it --env-file $ENV_PATH $2 bash -c 'echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc'
+      #docker exec -it $2 bash -c '[[ -z "$NPM_TOKEN" ]] && { echo "Missing NPM_TOKEN" >&2; exit 1; }'
+      #[[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Missing NPM_TOKEN env var in container" >&2; exit 1; }
+      docker exec -it $2 bash -c '[[ -n "$GITHUB_TOKEN" ]] && { echo "GITHUB_TOKEN found"; } || echo "GITHUB_TOKEN not found!"'
       docker exec -it $2 bash -c 'echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > .npmrc'
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Failed to write .npmrc" >&2; exit 1; }
-      #docker exec -it $2 bash -c "$CMD"
-      #[[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\"" >&2; exit 1; }
+      docker exec -it $2 bash -c "$CMD"
+      [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\"" >&2; exit 1; }
     else
       docker exec -it $2 bash -c "$3"
       [[ $? != 0 ]] && { echo "Failed to execute \"$3\" in docker container \"$2\"" >&2; exit 1; }
