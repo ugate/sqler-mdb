@@ -24,10 +24,10 @@
       minimumsize=1000
       actualsize=$(wc -c <"$ENV_PATH")
       if [ $actualsize -ge $minimumsize ]; then
-          echo "$ENV_PATH is over $minimumsize bytes"
+          echo "$ENV_PATH is over $minimumsize bytes ($actualsize bytes)"
           exit 0
       else
-          echo "$ENV_PATH is under $minimumsize bytes"
+          echo "$ENV_PATH is under $minimumsize bytes ($actualsize bytes)"
           exit 1
       fi
 
