@@ -5,6 +5,33 @@
 # $2 Docker container name that will wait for a "healthy" healthcheck and will be used to run the execution command (required)
 # $3 The actual execution command that will be ran (required). When "npm_deploy", all tokens will be included in execution of
 #     "npm run jsdoc-deploy" and "npm publish"
+
+      [[ -z "$GITHUB_TOKEN" ]] && { echo "Missing GITHUB_TOKEN. Failed to \"$3\" in docker container \"$2\"" >&2; exit 1; }
+      [[ -z "$NPM_TOKEN" ]] && { echo "Missing NPM_TOKEN. Failed to \"$3\" in docker container \"$2\"" >&2; exit 1; }
+      # ensure the secret tokens are available
+      ENV_PATH="test_env"
+      #printf "GITHUB_TOKEN=${GITHUB_TOKEN}\nNPM_TOKEN=${NPM_TOKEN}" > $ENV_PATH
+      echo -e "GITHUB_TOKEN=${GITHUB_TOKEN}\nNPM_TOKEN=${NPM_TOKEN}" > $ENV_PATH
+      [[ $? != 0 ]] && { echo "Failed to write environment to \"$ENV_PATH\"" >&2; exit 1; }
+
+      if [ -f "$ENV_PATH" ]; then
+        echo "FILE EXISTS: $ENV_PATH"
+      else
+        echo "FILE IS MISSING: $ENV_PATH"
+        exit 1
+      fi
+
+      minimumsize=1000
+      actualsize=$(wc -c <"$ENV_PATH")
+      if [ $actualsize -ge $minimumsize ]; then
+          echo "$ENV_PATH is over $minimumsize bytes"
+          exit 0
+      else
+          echo "$ENV_PATH is under $minimumsize bytes"
+          exit 1
+      fi
+
+
 attempt=0
 health1=checking
 health2=checking
@@ -24,14 +51,13 @@ while [ $attempt -le 79 ]; do
       [[ -z "$NPM_TOKEN" ]] && { echo "Missing NPM_TOKEN. Failed to \"$3\" in docker container \"$2\"" >&2; exit 1; }
       # ensure the secret tokens are available
       ENV_PATH="test_env"
-      #printf "GITHUB_TOKEN=${GITHUB_TOKEN}\nNPM_TOKEN=${NPM_TOKEN}" >> $ENV_PATH
-      echo -e "GITHUB_TOKEN=${GITHUB_TOKEN}\nNPM_TOKEN=${NPM_TOKEN}" >> $ENV_PATH
+      #printf "GITHUB_TOKEN=${GITHUB_TOKEN}\nNPM_TOKEN=${NPM_TOKEN}" > $ENV_PATH
+      echo -e "GITHUB_TOKEN=${GITHUB_TOKEN}\nNPM_TOKEN=${NPM_TOKEN}" > $ENV_PATH
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Failed to write environment to \"$ENV_PATH\"" >&2; exit 1; }
 
       CMD="npm run jsdocp-deploy"
       docker exec -it --env-file $ENV_PATH $2 bash -c '[[ -z "$GITHUB_TOKEN" ]] && { echo "Missing GITHUB_TOKEN" >&2; exit 1; }'
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Missing GITHUB_TOKEN env var in container" >&2; rm $ENV_PATH; exit 1; }
-      #docker exec -it $2 bash -c "curl --fail https://github.com/ugate/sqler-mdb"
       docker exec -it --env-file $ENV_PATH $2 bash -c "$CMD"
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\"" >&2; rm $ENV_PATH; exit 1; }
 
@@ -40,7 +66,6 @@ while [ $attempt -le 79 ]; do
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Missing GITHUB_TOKEN env var in container" >&2; rm $ENV_PATH; exit 1; }
       docker exec -it --env-file $ENV_PATH $2 bash -c 'echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc'
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Failed to write .npmrc" >&2; rm $ENV_PATH; exit 1; }
-      #docker exec -it $2 bash -c "curl --fail https://registry.npmjs.org/sqler-mdb"
       docker exec -it --env-file $ENV_PATH $2 bash -c "$CMD"
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\"" >&2; rm $ENV_PATH; exit 1; }
 
