@@ -1,7 +1,7 @@
 # When a tagged commit is pushed the documentation pages and npm module are published/deployed:
 os: linux
 # linux dist that includes C++ compiler needed for native node modules
-# dist: groovy
+dist: focal
 language: minimal
 services:
   - docker
