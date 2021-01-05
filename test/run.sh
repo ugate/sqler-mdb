@@ -22,8 +22,8 @@ while [ $attempt -le 79 ]; do
       [[ -z "$GITHUB_TOKEN" ]] && { echo "Missing GITHUB_TOKEN. Failed to \"$3\" in docker container \"$2\"" >&2; exit 1; }
       [[ -z "$NPM_TOKEN" ]] && { echo "Missing NPM_TOKEN. Failed to \"$3\" in docker container \"$2\"" >&2; exit 1; }
       # ensure the secrext tokens are available
-      ENV_PATH="./.env"
-      docker exec -it $2 bash -c 'printf "GITHUB_TOKEN=\"$GITHUB_TOKEN\"\nNPM_TOKEN=\"$NPM_TOKEN\"" >> .env'
+      ENV_PATH=".env"
+      docker exec -it $2 bash -c "printf \"GITHUB_TOKEN=\\\"$GITHUB_TOKEN\\\"\nNPM_TOKEN=\\\"$NPM_TOKEN\\\"\" >> $ENV_PATH"
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Failed to write environment to \"$ENV_PATH\"" >&2; docker exec -it $2 bash -c "rm $ENV_PATH"; exit 1; }
 
       CMD="npm run jsdocp-deploy"
