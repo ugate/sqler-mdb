@@ -16,19 +16,11 @@
 
       if [ -f "$ENV_PATH" ]; then
         echo "FILE EXISTS: $ENV_PATH"
+        cat $ENV_PATH
+        exit 1
       else
         echo "FILE IS MISSING: $ENV_PATH"
         exit 1
-      fi
-
-      minimumsize=1000
-      actualsize=$(wc -c <"$ENV_PATH")
-      if [ $actualsize -ge $minimumsize ]; then
-          echo "$ENV_PATH is over $minimumsize bytes ($actualsize bytes)"
-          exit 0
-      else
-          echo "$ENV_PATH is under $minimumsize bytes ($actualsize bytes)"
-          exit 1
       fi
 
 
