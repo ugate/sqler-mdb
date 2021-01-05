@@ -25,7 +25,7 @@ while [ $attempt -le 79 ]; do
 
       CMD="npm run jsdocp-deploy"
       #docker exec -it $2 bash -c '[[ -z "$GITHUB_TOKEN" ]] && { echo "Missing GITHUB_TOKEN" >&2; exit 1; }'
-      docker exec -it $2 bash -c '[[ -n "$GITHUB_TOKEN" ]] && { echo "Found GITHUB_TOKEN; }'
+      docker exec -it $2 bash -c '[[ -n "$GITHUB_TOKEN" ]] && { echo "Found "GITHUB_TOKEN"; }'
       #[[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Missing GITHUB_TOKEN env var in container" >&2; exit 1; }
       docker exec -it $2 bash -c "$CMD"
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\"" >&2; rm $ENV_PATH; exit 1; }
