@@ -5,25 +5,6 @@
 # $2 Docker container name that will wait for a "healthy" healthcheck and will be used to run the execution command (required)
 # $3 The actual execution command that will be ran (required). When "npm_deploy", all tokens will be included in execution of
 #     "npm run jsdoc-deploy" and "npm publish"
-
-      [[ -z "$GITHUB_TOKEN" ]] && { echo "Missing GITHUB_TOKEN. Failed to \"$3\" in docker container \"$2\"" >&2; exit 1; }
-      [[ -z "$NPM_TOKEN" ]] && { echo "Missing NPM_TOKEN. Failed to \"$3\" in docker container \"$2\"" >&2; exit 1; }
-      # ensure the secret tokens are available
-      ENV_PATH="test_env"
-      #printf "GITHUB_TOKEN=${GITHUB_TOKEN}\nNPM_TOKEN=${NPM_TOKEN}" > $ENV_PATH
-      echo -e "GITHUB_TOKEN=${GITHUB_TOKEN}\nNPM_TOKEN=${NPM_TOKEN}" > $ENV_PATH
-      [[ $? != 0 ]] && { echo "Failed to write environment to \"$ENV_PATH\"" >&2; exit 1; }
-
-      if [ -f "$ENV_PATH" ]; then
-        echo "FILE EXISTS: $ENV_PATH"
-        cat $ENV_PATH
-        exit 1
-      else
-        echo "FILE IS MISSING: $ENV_PATH"
-        exit 1
-      fi
-
-
 attempt=0
 health1=checking
 health2=checking
@@ -42,23 +23,27 @@ while [ $attempt -le 79 ]; do
       [[ -z "$GITHUB_TOKEN" ]] && { echo "Missing GITHUB_TOKEN. Failed to \"$3\" in docker container \"$2\"" >&2; exit 1; }
       [[ -z "$NPM_TOKEN" ]] && { echo "Missing NPM_TOKEN. Failed to \"$3\" in docker container \"$2\"" >&2; exit 1; }
       # ensure the secret tokens are available
-      ENV_PATH="test_env"
+      #ENV_PATH="test_env"
       #printf "GITHUB_TOKEN=${GITHUB_TOKEN}\nNPM_TOKEN=${NPM_TOKEN}" > $ENV_PATH
-      echo -e "GITHUB_TOKEN=${GITHUB_TOKEN}\nNPM_TOKEN=${NPM_TOKEN}" > $ENV_PATH
-      [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Failed to write environment to \"$ENV_PATH\"" >&2; exit 1; }
+      #[[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Failed to write environment to \"$ENV_PATH\"" >&2; exit 1; }
 
       CMD="npm run jsdocp-deploy"
-      docker exec -it --env-file $ENV_PATH $2 bash -c '[[ -z "$GITHUB_TOKEN" ]] && { echo "Missing GITHUB_TOKEN" >&2; exit 1; }'
+      #docker exec -it --env-file $ENV_PATH $2 bash -c '[[ -z "$GITHUB_TOKEN" ]] && { echo "Missing GITHUB_TOKEN" >&2; exit 1; }'
+      docker exec -it -e GITHUB_TOKEN=${GITHUB_TOKEN} $2 bash -c '[[ -z "$GITHUB_TOKEN" ]] && { echo "Missing GITHUB_TOKEN" >&2; exit 1; }'
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Missing GITHUB_TOKEN env var in container" >&2; rm $ENV_PATH; exit 1; }
-      docker exec -it --env-file $ENV_PATH $2 bash -c "$CMD"
+      #docker exec -it --env-file $ENV_PATH $2 bash -c "$CMD"
+      docker exec -it -e GITHUB_TOKEN=${GITHUB_TOKEN} $2 bash -c "$CMD"
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\"" >&2; rm $ENV_PATH; exit 1; }
 
       CMD="npm publish"
-      docker exec -it --env-file $ENV_PATH $2 bash -c '[[ -z "$NPM_TOKEN" ]] && { echo "Missing NPM_TOKEN" >&2; exit 1; }'
-      [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Missing GITHUB_TOKEN env var in container" >&2; rm $ENV_PATH; exit 1; }
-      docker exec -it --env-file $ENV_PATH $2 bash -c 'echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc'
+      #docker exec -it --env-file $ENV_PATH $2 bash -c '[[ -z "$NPM_TOKEN" ]] && { echo "Missing NPM_TOKEN" >&2; exit 1; }'
+      docker exec -it -e NPM_TOKEN=${NPM_TOKEN} $2 bash -c '[[ -z "$NPM_TOKEN" ]] && { echo "Missing NPM_TOKEN" >&2; exit 1; }'
+      [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Missing NPM_TOKEN env var in container" >&2; rm $ENV_PATH; exit 1; }
+      #docker exec -it --env-file $ENV_PATH $2 bash -c 'echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc'
+      docker exec -it -e NPM_TOKEN=${NPM_TOKEN} $2 bash -c 'echo "//registry.npmjs.org/:_authToken=\${NPM_TOKEN}" > .npmrc'
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\": Failed to write .npmrc" >&2; rm $ENV_PATH; exit 1; }
-      docker exec -it --env-file $ENV_PATH $2 bash -c "$CMD"
+      #docker exec -it --env-file $ENV_PATH $2 bash -c "$CMD"
+      docker exec -it -e NPM_TOKEN=${NPM_TOKEN} $2 bash -c "$CMD"
       [[ $? != 0 ]] && { echo "Failed to \"$3\" at \"$CMD\" in docker container \"$2\"" >&2; rm $ENV_PATH; exit 1; }
 
       rm $ENV_PATH
