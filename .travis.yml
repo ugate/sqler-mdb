@@ -16,7 +16,7 @@ before_install:
   - curl -L https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-`uname -s`-`uname -m` > docker-compose
   - chmod +x docker-compose
   - sudo mv docker-compose /usr/local/bin
-  - docker-compose build sqler_dialect
+  - docker-compose build sqler_mdb_dialect
   - docker-compose up -d
   - docker ps -a
   - chmod +x test/run.sh
@@ -26,31 +26,13 @@ branches:
     - "/v*/"
 script:
 # - printenv
-  - test/run.sh sqler_db sqler_dialect "npm test"
+  - test/run.sh sqler_mdb sqler_mdb_dialect "npm test"
 deploy:
   - provider: script
     skip_cleanup: true # deprecated, use cleanup with new dpl ver
     cleanup: false
-    script: test/run.sh sqler_db sqler_dialect npm_deploy
+    script: test/run.sh sqler_mdb sqler_mdb_dialect npm_deploy
     on:
       tags: true # only on tagging commit
       branch:
         - /v(\d+\.)?(\d+\.)?(\*|\d+)$/
-  #edge: true # avoid dpl v2 missing api_token
-  # - provider: script
-  #   skip_cleanup: true # deprecated, use cleanup with new dpl ver
-  #   cleanup: false
-  #   script: npm run jsdocp-deploy
-  #   on:
-  #     tags: true # only on tagging commit
-  #     branch:
-  #       - /v(\d+\.)?(\d+\.)?(\*|\d+)$/
-  # - provider: npm
-  #   skip_cleanup: false # deprecated, use cleanup with new dpl ver
-  #   cleanup: true
-  #   email: "ugate.public@gmail.com"
-  #   api_token: $NPM_TOKEN  # Set in the settings page of your repository, as a secure variable
-  #   on:
-  #     tags: true # only on tagging commit
-  #     branch:
-  #       - /v(\d+\.)?(\d+\.)?(\*|\d+)$/

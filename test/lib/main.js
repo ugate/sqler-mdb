@@ -334,7 +334,7 @@ class Tester {
     const conf = getConf({ pool: null }), realConf = getConf();
     if (conf.univ.db[test.vendor].host) {
       //delete conf.univ.db[test.vendor].host;
-      conf.univ.db[test.vendor].host = 'sqler_database'; // need to use alias hostname from docker "links"
+      conf.univ.db[test.vendor].host = 'sqler_mdb_database'; // need to use alias hostname from docker "links"
     } else {
       conf.univ.db[test.vendor].host = realConf.univ.db[test.vendor].host;
     }
