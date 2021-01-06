@@ -50,4 +50,4 @@ services:
 networks:
   app:
     driver: bridge
-    name: sqler_app
+    name: sqler_mssql_net
