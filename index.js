@@ -3,13 +3,13 @@
 const MAX_MDB_NAME_LGTH = 64;
 
 /**
- * MariaDB + MySQL specific extension of the {@link Manager~ConnectionOptions} from the [`sqler`](https://ugate.github.io/sqler/) module.
- * @typedef {Manager~ConnectionOptions} MDBConnectionOptions
+ * MariaDB + MySQL specific extension of the {@link SQLERConnectionOptions} from the [`sqler`](https://ugate.github.io/sqler/) module.
+ * @typedef {SQLERConnectionOptions} MDBConnectionOptions
  * @property {Object} driverOptions The `mariadb` (w/MySQL support) module specific options. __Both `connection` and `pool` will be merged when generating
  * the connection pool.__
  * @property {Object} [driverOptions.connection] An object that will contain properties/values that will be used to construct the MariaDB + MySQL connection
  * (e.g. `{ database: 'mydb', timezone: '-0700' }`). See the `mariadb` module documentation for a full listing of available connection options.
- * When a property value is a string surrounded by `${}`, it will be assumed to be a property that resides on either the {@link Manager~PrivateOptions}
+ * When a property value is a string surrounded by `${}`, it will be assumed to be a property that resides on either the {@link SQLERPrivateOptions}
  * passed into the {@link Manager} constructor or a property on the {@link MDBConnectionOptions} itself (in that order of precedence). For example, 
  * `connOpts.host = '127.0.0.1'` and `driverOptions.connection.host = '${host}'` would be interpolated into `driverOptions.connection.host = '127.0.0.1'`.
  * In contrast to `privOpts.username = 'someUsername' and `driverOptions.connection.user = '${username}'` would be interpolated into
@@ -26,11 +26,11 @@ const MAX_MDB_NAME_LGTH = 64;
  */
 
 /**
- * MariaDB + MySQL specific extension of the {@link Manager~ExecOptions} from the [`sqler`](https://ugate.github.io/sqler/) module. When a property of `binds`
+ * MariaDB + MySQL specific extension of the {@link SQLERExecOptions} from the [`sqler`](https://ugate.github.io/sqler/) module. When a property of `binds`
  * contains an object it will be _interpolated_ for property values on the `mariadb` module.
  * For example, `binds.name = '${SOME_MARIADB_CONSTANT}'` will be interpolated as
  * `binds.name = mariadb.SOME_MARIADB_CONSTANT`.
- * @typedef {Manager~ExecOptions} MDBExecOptions
+ * @typedef {SQLERExecOptions} MDBExecOptions
  * @property {Object} [driverOptions] The `mariadb` module specific options.
  * @property {String} [driverOptions.preparedStatementDatabase] The database name to use when generating prepared statements for the given execution. Since prepared
  * statements are scoped only for a given connection and a temporary stored procedure is used to execute prepared statements, __`preparedStatementDatabase` is
@@ -52,9 +52,9 @@ module.exports = class MDBDialect {
   /**
    * Constructor
    * @constructs MDBDialect
-   * @param {Manager~PrivateOptions} priv The private configuration options
+   * @param {SQLERPrivateOptions} priv The private configuration options
    * @param {MDBConnectionOptions} connConf The individual SQL __connection__ configuration for the given dialect that was passed into the originating {@link Manager}
-   * @param {Manager~Track} track Container for sharing data between {@link Dialect} instances.
+   * @param {SQLERTrack} track Container for sharing data between {@link Dialect} instances.
    * @param {Function} [errorLogger] A function that takes one or more arguments and logs the results as an error (similar to `console.error`)
    * @param {Function} [logger] A function that takes one or more arguments and logs the results (similar to `console.log`)
    * @param {Boolean} [debug] A flag that indicates the dialect should be run in debug mode (if supported)
@@ -164,8 +164,8 @@ module.exports = class MDBDialect {
    * @param {String} sql the SQL to execute
    * @param {MDBExecOptions} opts The execution options
    * @param {String[]} frags the frament keys within the SQL that will be retained
-   * @param {Manager~ExecMeta} meta The SQL execution metadata
-   * @param {(Manager~ExecErrorOptions | Boolean)} [errorOpts] The error options to use
+   * @param {SQLERExecMeta} meta The SQL execution metadata
+   * @param {(SQLERExecErrorOptions | Boolean)} [errorOpts] The error options to use
    * @returns {Dialect~ExecResults} The execution results
    */
   async exec(sql, opts, frags, meta, errorOpts) {
@@ -308,7 +308,7 @@ module.exports = class MDBDialect {
     const dlt = internal(this);
     try {
       if (dlt.at.logger) {
-        dlt.at.logger(`sqler-mdb: Closing connection pool "${dlt.at.opts.id}" (uncommitted transactions: ${dlt.at.state.pending})`);
+        dlt.at.logger(`sqler-mdb: Closing connection pool "${dlt.at.opts.id}" (${statusLabel(dlt)})`);
       }
       if (dlt.at.pool) {
         await dlt.at.pool.end();
@@ -317,14 +317,14 @@ module.exports = class MDBDialect {
       return dlt.at.state.pending;
     } catch (err) {
       if (dlt.at.errorLogger) {
-        dlt.at.errorLogger(`sqler-mdb: Failed to close connection pool "${dlt.at.opts.id}" (uncommitted transactions: ${dlt.at.state.pending})`, err);
+        dlt.at.errorLogger(`sqler-mdb: Failed to close connection pool "${dlt.at.opts.id}" (${statusLabel(dlt)})`, err);
       }
       throw err;
     }
   }
 
   /**
-   * @returns {Manager~State} The state
+   * @returns {SQLERState} The state
    */
   get state() {
     return JSON.parse(JSON.stringify(internal(this).at.state));
@@ -346,7 +346,7 @@ module.exports = class MDBDialect {
  * @param {String} name The name of the function that will be called on the connection
  * @param {Boolean} reset Truthy to reset the pending connection and transaction count when the operation completes successfully
  * @param {Object} conn The connection
- * @param {Manager~ExecOptions} [opts] The {@link Manager~ExecOptions}
+ * @param {SQLERExecOptions} [opts] The {@link SQLERExecOptions}
  * @param {Function} [preop] A no-argument async function that will be executed prior to the operation
  * @returns {Function} A no-arguement `async` function that returns the number or pending transactions
  */
@@ -356,7 +356,7 @@ function operation(dlt, name, reset, conn, opts, preop) {
     if (preop) await preop();
     try {
       if (dlt.at.logger) {
-        dlt.at.logger(`sqler-mdb: Performing ${name} on connection pool "${dlt.at.opts.id}" (uncommitted transactions: ${dlt.at.state.pending})`);
+        dlt.at.logger(`sqler-mdb: Performing ${name} on connection pool "${dlt.at.opts.id}" (${statusLabel(dlt)})`);
       }
       await conn[name]();
       if (reset) { // not to be confused with mariadb connection.reset();
@@ -424,6 +424,17 @@ function preparedStmtProcExec(pso, conn, binds, prepare) {
   return conn.query(`CALL ${pso.procedure}('${prepare ? 'prepare_' : ''}execute', JSON_OBJECT(${
     pso.bnames.map(name => `${conn.escape(name)},${conn.escape(binds[name])}`).join(',')
   }))`);
+}
+
+/**
+ * Returns a label that contains connection details, transaction counts, etc.
+ * @private
+ * @param {Object} dlt The internal MariaDB/MySQL object instance
+ * @returns {String} The status label
+ */
+function statusLabel(dlt) {
+  return `uncommitted transactions: ${dlt.at.state.pending}${dlt.at.pool ? `, total connections: ${dlt.at.pool.totalConnections()}, active connections: ${
+    dlt.at.pool.activeConnections()}, idle connections: ${dlt.at.pool.idleConnections()}, queue size: ${dlt.at.pool.taskQueueSize()}` : ''}`;
 }
 
 // private mapping

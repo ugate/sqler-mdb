@@ -80,7 +80,7 @@ module.exports = class MDBTestDialect extends MDBDialect {
 
 /**
  * Expects the MariaDB + MySQL driver options (when present)
- * @param {Manager~ConnectionOptions} opts The connection options to check
+ * @param {SQLERConnectionOptions} opts The connection options to check
  * @param {MDBTestDialect} dlt The test dialect
  */
 function expectDriverOptions(opts, dlt) {
