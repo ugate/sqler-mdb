@@ -54,33 +54,34 @@ async function implicitTransactionUpdate(manager, connName, binds1, binds2, rtn)
 
 async function explicitTransactionUpdate(manager, connName, binds1, binds2, rtn) {
   rtn.txExpRslts = new Array(2); // don't exceed connection pool count
+  let tx;
   try {
     // start a transaction
-    const txId = await manager.db[connName].beginTransaction();
+    tx = await manager.db[connName].beginTransaction();
 
     // Example execution in parallel (same transacion)
     rtn.txExpRslts[0] = manager.db[connName].update.table1.rows({
       name: 'TX Explicit 1 (UPDATE)', // name is optional
       autoCommit: false,
-      transactionId: txId, // ensure execution takes place within transaction
+      transaction: tx, // ensure execution takes place within transaction
       binds: binds1
     });
     rtn.txExpRslts[1] = manager.db[connName].update.table2.rows({
       name: 'TX Explicit 2 (UPDATE)', // name is optional
       autoCommit: false,
-      transactionId: txId, // ensure execution takes place within transaction
+      transaction: tx, // ensure execution takes place within transaction
       binds: binds2
     });
     // could have also ran is series by awaiting when the SQL function is called
     rtn.txExpRslts[0] = await rtn.txExpRslts[0];
     rtn.txExpRslts[1] = await rtn.txExpRslts[1];
 
-    // could commit using either one of the returned results
-    await rtn.txExpRslts[0].commit();
+    // commit the transaction
+    await tx.commit();
   } catch (err) {
-    if (rtn.txExpRslts[0] && rtn.txExpRslts[0].rollback) {
-      // could rollback using either one of the returned results
-      await rtn.txExpRslts[0].rollback();
+    if (tx) {
+      // rollback the transaction
+      await tx.rollback();
     }
     throw err;
   }
@@ -129,17 +130,18 @@ async function preparedStatementUpdate(manager, connName, binds, rtn) {
 
 async function preparedStatementExplicitTxUpdate(manager, connName, binds, rtn) {
   rtn.txExpPsRslts = new Array(2); // don't exceed connection pool count
+  let tx;
   try {
     // start a transaction
-    const txId = await manager.db[connName].beginTransaction();
+    tx = await manager.db[connName].beginTransaction();
 
     for (let i = 0; i < rtn.txExpPsRslts.length; i++) {
       // update with expanded name
-      binds.name += `TABLE: 1, ROW: ${i} (Prepared statement with txId "${txId}" UPDATE)`;
+      binds.name += `TABLE: 1, ROW: ${i} (Prepared statement with txId "${tx}" UPDATE)`;
       rtn.txExpPsRslts[i] = manager.db[connName].update.table1.rows({
         name: `TX/PS ${i} (UPDATE)`, // name is optional
         autoCommit: false, // don't auto-commit after execution
-        transactionId: txId, // ensure execution takes place within transaction
+        transaction: tx, // ensure execution takes place within transaction
         prepareStatement: true, // ensure a prepared statement is used
         driverOptions: {
           // prepared statements in MySQL/MariaDB use a temporary
@@ -158,12 +160,12 @@ async function preparedStatementExplicitTxUpdate(manager, connName, binds, rtn) 
 
     // unprepare will be called when calling commit
     // (alt, could have called unprepare before commit)
-    await rtn.txExpPsRslts[0].commit();
+    await tx.commit();
   } catch (err) {
-    if (rtn.txExpPsRslts[0] && rtn.txExpPsRslts[0].rollback) {
+    if (tx) {
       // unprepare will be called when calling rollback
       // (alt, could have called unprepare before rollback)
-      await rtn.txExpPsRslts[0].rollback();
+      await tx.rollback();
     }
     throw err;
   }
