@@ -1,6 +1,6 @@
 {
   "name": "sqler-mdb",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "@ugate/sqler dialect for MariaDB and/or MySQL",
   "main": "index.js",
   "engines": {
