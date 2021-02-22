@@ -117,6 +117,7 @@ module.exports = class MDBDialect {
     if (dlt.at.logger) {
       dlt.at.logger(`sqler-mdb: Beginning transaction "${txId}" on connection pool "${dlt.at.opts.id}"`);
     }
+    /** @type {SQLERTransaction} */
     const tx = {
       id: txId,
       state: Object.seal({
@@ -127,11 +128,11 @@ module.exports = class MDBDialect {
     };
     /** @type {MDBTransactionObject} */
     const txo = { tx };
-    const opts = { transaction: tx };
+    const opts = { transactionId: tx.id };
     const conn = await dlt.this.getConnection(opts);
     await conn.beginTransaction();
-    tx.commit = operation(dlt, 'commit', true, conn, opts, 'unprepare'),
-    tx.rollback = operation(dlt, 'rollback', true, conn, opts, 'unprepare'),
+    tx.commit = operation(dlt, 'commit', true, conn, opts, 'unprepare');
+    tx.rollback = operation(dlt, 'rollback', true, conn, opts, 'unprepare');
     Object.freeze(tx);
     dlt.at.transactions.set(txId, txo);
     dlt.at.connections.set(txId, conn);
@@ -150,7 +151,7 @@ module.exports = class MDBDialect {
   async exec(sql, opts, frags, meta, errorOpts) {
     const dlt = internal(this);
     /** @type {MDBTransactionObject} */
-    const txo = opts.transaction ? dlt.at.transactions.get(opts.transaction.id) : null;
+    const txo = opts.transactionId ? dlt.at.transactions.get(opts.transactionId) : null;
     let conn, bndp = {}, dopts, rslts, esql, ebndp, error, pso;
     try {
       // interpolate and remove unused binds since
@@ -196,7 +197,7 @@ module.exports = class MDBDialect {
       } else {
         if (opts.prepareStatement) {
           rtn.unprepare = async () => {
-            const hasTX = opts.transaction && dlt.at.transactions.has(opts.transaction.id);
+            const hasTX = opts.transactionId && dlt.at.transactions.has(opts.transactionId);
             if (dlt.at.stmts.has(psname)) {
               const pso = dlt.at.stmts.get(psname);
               try {
@@ -242,8 +243,6 @@ module.exports = class MDBDialect {
             await operation(dlt, 'commit', false, conn, opts, 'unprepare')();
           } else {
             dlt.at.state.pending++;
-            rtn.commit = operation(dlt, 'commit', true, conn, opts, rtn.unprepare);
-            rtn.rollback = operation(dlt, 'rollback', true, conn, opts, rtn.unprepare);
           }
         }
       }
@@ -278,7 +277,7 @@ module.exports = class MDBDialect {
    */
   async getConnection(opts) {
     const dlt = internal(this);
-    const txId = opts.transaction && opts.transaction.id;
+    const txId = opts.transactionId;
     let conn = txId ? dlt.at.connections.get(txId) : null;
     if (!conn) {
       return dlt.at.pool.getConnection();
@@ -337,12 +336,12 @@ module.exports = class MDBDialect {
  * @param {SQLERExecOptions} [opts] The {@link SQLERExecOptions}
  * @param {(String | Function)} [preop] A no-argument async function that will be executed prior to the operation or a string that idicates an operation to
  * perform special actions. The following string operations are valid:
- * 1. __`unprepare`__ - Any prepared statemsnts that are associated with the `opts.transaction.id` will execute `await preparedStatement.unprepare()`.
+ * 1. __`unprepare`__ - Any prepared statemsnts that are associated with the `opts.transactionId` will execute `await preparedStatement.unprepare()`.
  * @returns {Function} A no-arguement `async` function that returns the number or pending transactions
  */
 function operation(dlt, name, reset, conn, opts, preop) {
   return async () => {
-    const txo = opts && opts.transaction ? dlt.at.transactions.get(opts.transaction.id) : null;
+    const txo = opts && opts.transactionId ? dlt.at.transactions.get(opts.transactionId) : null;
     let error;
     if (preop === 'unprepare') {
       if (txo.unprepares) {

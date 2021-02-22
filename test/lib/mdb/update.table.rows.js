@@ -63,13 +63,13 @@ async function explicitTransactionUpdate(manager, connName, binds1, binds2, rtn)
     rtn.txExpRslts[0] = manager.db[connName].update.table1.rows({
       name: 'TX Explicit 1 (UPDATE)', // name is optional
       autoCommit: false,
-      transaction: tx, // ensure execution takes place within transaction
+      transactionId: tx.id, // ensure execution takes place within transaction
       binds: binds1
     });
     rtn.txExpRslts[1] = manager.db[connName].update.table2.rows({
       name: 'TX Explicit 2 (UPDATE)', // name is optional
       autoCommit: false,
-      transaction: tx, // ensure execution takes place within transaction
+      transactionId: tx.id, // ensure execution takes place within transaction
       binds: binds2
     });
     // could have also ran is series by awaiting when the SQL function is called
@@ -137,11 +137,11 @@ async function preparedStatementExplicitTxUpdate(manager, connName, binds, rtn) 
 
     for (let i = 0; i < rtn.txExpPsRslts.length; i++) {
       // update with expanded name
-      binds.name += `TABLE: 1, ROW: ${i} (Prepared statement with txId "${tx}" UPDATE)`;
+      binds.name += `TABLE: 1, ROW: ${i} (Prepared statement with txId "${tx.id}" UPDATE)`;
       rtn.txExpPsRslts[i] = manager.db[connName].update.table1.rows({
         name: `TX/PS ${i} (UPDATE)`, // name is optional
         autoCommit: false, // don't auto-commit after execution
-        transaction: tx, // ensure execution takes place within transaction
+        transactionId: tx.id, // ensure execution takes place within transaction
         prepareStatement: true, // ensure a prepared statement is used
         driverOptions: {
           // prepared statements in MySQL/MariaDB use a temporary
