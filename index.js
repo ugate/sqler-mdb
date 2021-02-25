@@ -25,7 +25,6 @@ module.exports = class MDBDialect {
     dlt.at.transactions = new Map();
     dlt.at.stmtFuncs = new Map();
     dlt.at.stmts = new Map();
-    dlt.at.connections = new Map();
     dlt.at.opts = {
       autoCommit: true, // default autoCommit = true to conform to sqler
       id: `sqlerMDBGen${Math.floor(Math.random() * 10000)}`,
@@ -95,11 +94,7 @@ module.exports = class MDBDialect {
       throw err;
     } finally {
       if (conn) {
-        try {
-          await conn.release();
-        } catch (cerr) {
-          if (error) error.closeError = cerr;
-        }
+        await operation(dlt, 'release', false, conn, opts, null, error)();
       }
     }
   }
@@ -111,9 +106,6 @@ module.exports = class MDBDialect {
    */
   async beginTransaction(txId) {
     const dlt = internal(this);
-    if (dlt.at.transactions.has(txId)) {
-      return dlt.at.transactions.get(txId).tx;
-    }
     if (dlt.at.logger) {
       dlt.at.logger(`sqler-mdb: Beginning transaction "${txId}" on connection pool "${dlt.at.opts.id}"`);
     }
@@ -127,15 +119,13 @@ module.exports = class MDBDialect {
       })
     };
     /** @type {MDBTransactionObject} */
-    const txo = { tx };
+    const txo = { tx, conn: await dlt.at.pool.getConnection() };
     const opts = { transactionId: tx.id };
-    const conn = await dlt.this.getConnection(opts);
-    await conn.beginTransaction();
-    tx.commit = operation(dlt, 'commit', true, conn, opts, 'unprepare');
-    tx.rollback = operation(dlt, 'rollback', true, conn, opts, 'unprepare');
+    await txo.conn.beginTransaction();
+    tx.commit = operation(dlt, 'commit', true, txo, opts, 'unprepare');
+    tx.rollback = operation(dlt, 'rollback', true, txo, opts, 'unprepare');
     Object.freeze(tx);
     dlt.at.transactions.set(txId, txo);
-    dlt.at.connections.set(txId, conn);
     return tx;
   }
 
@@ -184,7 +174,7 @@ module.exports = class MDBDialect {
           pso = { sql: esql };
           // set before async in case concurrent PS invocations
           dlt.at.stmts.set(psname, pso);
-          pso.connProm = dlt.this.getConnection(opts);  // other PS exec need access to promise in order to wait for connection access
+          pso.connProm = txo ? Promise.resolve(txo.conn) : dlt.at.pool.getConnection();  // other PS exec need access to promise in order to wait for connection access
           pso.conn = conn = await pso.connProm; // wait for the initial PS to establish a connection (other PS exec need access to promise)
           pso.connProm = null; // reset promise once it completes
         }
@@ -230,17 +220,17 @@ module.exports = class MDBDialect {
             rslts = await preparedStmtProcExec(pso, conn, bndp);
           }
         } else {
-          conn = await dlt.this.getConnection(opts);
-          rslts = await conn.query(dopts.exec || esql, ebndp || bndp);
+          conn = txo ? null : await dlt.at.pool.getConnection();
+          rslts = await (txo ? txo.conn : conn).query(dopts.exec || esql, ebndp || bndp);
         }
         if (txo) {
           if (rtn.unprepare) {
-            txo.unprepares = txo.unprepares || [];
-            txo.unprepares.push(rtn.unprepare); // keep track of the prepared statements that have transaction scope
+            txo.unprepares = txo.unprepares || new Map();
+            txo.unprepares.set(pso.name, rtn.unprepare); // keep track of the prepared statements that have transaction scope
           }
           if (opts.autoCommit) {
             // MariaDB/MySQL has no option to autocommit during SQL execution
-            await operation(dlt, 'commit', false, conn, opts, 'unprepare')();
+            await operation(dlt, 'commit', false, txo, opts, 'unprepare')();
           } else {
             dlt.at.state.pending++;
           }
@@ -259,30 +249,14 @@ module.exports = class MDBDialect {
       throw err;
     } finally {
       // transactions/prepared statements need the connection to remain open until commit/rollback/unprepare
-      if (conn && !txo && !opts.prepareStatement) {
+      if (conn && !opts.prepareStatement) {
         try {
           await operation(dlt, 'release', false, conn, opts)();
         } catch (cerr) {
-          if (error) error.closeError = cerr;
+          if (error) error.releaseError = cerr;
         }
       }
     }
-  }
-
-  /**
-   * Gets the currently open connection or a new connection when there is no transaction already in progress
-   * @protected
-   * @param {MDBExecOptions} opts The execution options
-   * @returns {Object} The connection (when present)
-   */
-  async getConnection(opts) {
-    const dlt = internal(this);
-    const txId = opts.transactionId;
-    let conn = txId ? dlt.at.connections.get(txId) : null;
-    if (!conn) {
-      return dlt.at.pool.getConnection();
-    }
-    return conn;
   }
 
   /**
@@ -299,7 +273,6 @@ module.exports = class MDBDialect {
         await dlt.at.pool.end();
         dlt.at.transactions.clear();
         dlt.at.stmts.clear();
-        dlt.at.connections.clear();
       }
       return dlt.at.state.pending;
     } catch (err) {
@@ -332,26 +305,25 @@ module.exports = class MDBDialect {
  * @param {Object} dlt The internal MariaDB/MySQL object instance
  * @param {String} name The name of the function that will be called on the connection
  * @param {Boolean} reset Truthy to reset the pending connection and transaction count when the operation completes successfully
- * @param {Object} conn The connection
+ * @param {(MDBTransactionObject | Object)} txoOrConn Either the transaction object or the connection itself
  * @param {SQLERExecOptions} [opts] The {@link SQLERExecOptions}
- * @param {(String | Function)} [preop] A no-argument async function that will be executed prior to the operation or a string that idicates an operation to
- * perform special actions. The following string operations are valid:
- * 1. __`unprepare`__ - Any prepared statemsnts that are associated with the `opts.transactionId` will execute `await preparedStatement.unprepare()`.
+ * @param {String} [preop] An operation name that will be performed before the actual operation. The following values are valid:
+ * 1. __`unprepare`__ - Any un-prepare functions that are associated with the passed {@link PGTransactionObject} will be executed.
  * @returns {Function} A no-arguement `async` function that returns the number or pending transactions
  */
-function operation(dlt, name, reset, conn, opts, preop) {
+function operation(dlt, name, reset, txoOrConn, opts, preop) {
   return async () => {
-    const txo = opts && opts.transactionId ? dlt.at.transactions.get(opts.transactionId) : null;
-    let error;
+    /** @type {MDBTransactionObject} */
+    const txo = opts.transactionId && txoOrConn.tx ? txoOrConn : null;
+    const conn = txo ? txo.conn : txoOrConn;
+    let ierr;
     if (preop === 'unprepare') {
       if (txo.unprepares) {
-        for (let unprepare of txo.unprepares) {
+        for (let unprepare of txo.unprepares.values()) {
           await unprepare();
         }
-        txo.unprepares = null;
+        txo.unprepares.clear();
       }
-    } else if (preop) {
-      await preop();
     }
     try {
       if (dlt.at.logger) {
@@ -359,26 +331,23 @@ function operation(dlt, name, reset, conn, opts, preop) {
       }
       await conn[name]();
       if (reset) { // not to be confused with mariadb connection.reset();
-        if (txo) {
-          dlt.at.transactions.delete(txo.tx.id);
-          dlt.at.connections.delete(txo.tx.id);
-        }
+        if (txo) dlt.at.transactions.delete(txo.tx.id);
         dlt.at.state.pending = 0;
       }
     } catch (err) {
-      error = err;
+      ierr = err;
       if (dlt.at.errorLogger) {
         dlt.at.errorLogger(`sqler-mdb: Failed to ${name} ${dlt.at.state.pending} transaction(s) with options: ${
-          opts ? JSON.stringify(opts) : 'N/A'}`, error);
+          opts ? JSON.stringify(opts) : 'N/A'}`, ierr);
       }
-      throw error;
+      throw ierr;
     } finally {
       if (name !== 'end' && name !== 'release') {
         try {
           await conn.release();
         } catch (cerr) {
-          if (error) {
-            error.closeError = cerr;
+          if (ierr) {
+            ierr.releaseError = cerr;
           }
         }
       }
@@ -497,5 +466,7 @@ let internal = function(object) {
  * Transactions are wrapped in a parent transaction object so private properties can be added (e.g. prepared statements)
  * @typedef {Object} MDBTransactionObject
  * @property {SQLERTransaction} tx The transaction
- * @property {Function[]} unprepares No-argument _async_ functions that will be called as a pre-operation call prior to `commit` or `rollback`
+ * @property {Object} conn The connection
+ * @property {Map} unprepares Map of prepared statement names (key) and no-argument _async_ functions that will be called as a pre-operation call prior to
+ * `commit` or `rollback` (value)
  */
