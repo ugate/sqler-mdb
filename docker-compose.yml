@@ -12,7 +12,7 @@ services:
     image: mysql:latest
     command: --default-authentication-plugin=mysql_native_password
     container_name: sqler_mdb
-    restart: always
+    restart: unless-stopped
     environment:
       <<: *env-vars
     networks:
