@@ -14,7 +14,7 @@ const imageType = require('image-type');
 // TODO : import * as Fs from 'fs';
 // TODO : import * as Os from 'os';
 // TODO : import { expect } from '@hapi/code';
-// TODO : import * as readChunk from 'readChunk';
+// TODO : import { readChunkSync } from 'read-chunk'; // version >= 4.0.0
 // TODO : import * as imageType from 'imageType';
 
 const CONF_SUFFIX_VAR = 'SQLER_CONF_FILE_SUFFIX';

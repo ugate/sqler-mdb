@@ -1,5 +1,7 @@
 'use strict';
 
+const typedefs = require('sqler/typedefs');
+
 const MAX_MDB_NAME_LGTH = 64;
 
 /**
@@ -10,9 +12,9 @@ module.exports = class MDBDialect {
   /**
    * Constructor
    * @constructs MDBDialect
-   * @param {SQLERPrivateOptions} priv The private configuration options
+   * @param {typedefs.SQLERPrivateOptions} priv The private configuration options
    * @param {MDBConnectionOptions} connConf The individual SQL __connection__ configuration for the given dialect that was passed into the originating {@link Manager}
-   * @param {SQLERTrack} track Container for sharing data between {@link Dialect} instances.
+   * @param {typedefs.SQLERTrack} track Container for sharing data between {@link Dialect} instances.
    * @param {Function} [errorLogger] A function that takes one or more arguments and logs the results as an error (similar to `console.error`)
    * @param {Function} [logger] A function that takes one or more arguments and logs the results (similar to `console.log`)
    * @param {Boolean} [debug] A flag that indicates the dialect should be run in debug mode (if supported)
@@ -67,7 +69,7 @@ module.exports = class MDBDialect {
 
   /**
    * Initializes {@link MDBDialect} by creating the connection pool
-   * @param {Dialect~DialectInitOptions} opts The options described by the `sqler` module
+   * @param {typedefs.SQLERInitOptions} opts The options described by the `sqler` module
    * @returns {Object} The MariaDB/MySQL connection pool
    */
   async init(opts) {
@@ -101,8 +103,9 @@ module.exports = class MDBDialect {
 
   /**
    * Begins a transaction by opening a connection from the pool
-   * @param {String} txId The transaction ID that will be started
-   * @returns {SQLERTransaction} The transaction
+   * @param {String} txId The internally generated transaction identifier
+   * @param {typedefs.SQLERTransactionOptions} opts The transaction options passed in via the public API
+   * @returns {typedefs.SQLERTransaction} The transaction that was started
    */
   async beginTransaction(txId) {
     const dlt = internal(this);
@@ -134,9 +137,9 @@ module.exports = class MDBDialect {
    * @param {String} sql the SQL to execute
    * @param {MDBExecOptions} opts The execution options
    * @param {String[]} frags the frament keys within the SQL that will be retained
-   * @param {SQLERExecMeta} meta The SQL execution metadata
-   * @param {(SQLERExecErrorOptions | Boolean)} [errorOpts] The error options to use
-   * @returns {Dialect~ExecResults} The execution results
+   * @param {typedefs.SQLERExecMeta} meta The SQL execution metadata
+   * @param {(typedefs.SQLERExecErrorOptions | Boolean)} [errorOpts] The error options to use
+   * @returns {typedefs.SQLERExecResults} The execution results
    */
   async exec(sql, opts, frags, meta, errorOpts) {
     const dlt = internal(this);
@@ -180,6 +183,7 @@ module.exports = class MDBDialect {
         }
       }
 
+      /** @type {typedefs.SQLERExecResults} */
       const rtn = {};
 
       if (!txo && !opts.prepareStatement && opts.type === 'READ') {
@@ -284,7 +288,7 @@ module.exports = class MDBDialect {
   }
 
   /**
-   * @returns {SQLERState} The state
+   * @returns {typedefs.SQLERState} The state
    */
   get state() {
     return JSON.parse(JSON.stringify(internal(this).at.state));
@@ -306,7 +310,7 @@ module.exports = class MDBDialect {
  * @param {String} name The name of the function that will be called on the connection
  * @param {Boolean} reset Truthy to reset the pending connection and transaction count when the operation completes successfully
  * @param {(MDBTransactionObject | Object)} txoOrConn Either the transaction object or the connection itself
- * @param {SQLERExecOptions} [opts] The {@link SQLERExecOptions}
+ * @param {typedefs.SQLERExecOptions} [opts] The {@link SQLERExecOptions}
  * @param {String} [preop] An operation name that will be performed before the actual operation. The following values are valid:
  * 1. __`unprepare`__ - Any un-prepare functions that are associated with the passed {@link PGTransactionObject} will be executed.
  * @returns {Function} A no-arguement `async` function that returns the number or pending transactions
@@ -422,7 +426,7 @@ let internal = function(object) {
 
 /**
  * MariaDB + MySQL specific extension of the {@link SQLERConnectionOptions} from the [`sqler`](https://ugate.github.io/sqler/) module.
- * @typedef {SQLERConnectionOptions} MDBConnectionOptions
+ * @typedef {Object} MDBConnectionOptionsType
  * @property {Object} driverOptions The `mariadb` (w/MySQL support) module specific options. __Both `connection` and `pool` will be merged when generating
  * the connection pool.__
  * @property {Object} [driverOptions.connection] An object that will contain properties/values that will be used to construct the MariaDB + MySQL connection
@@ -441,6 +445,7 @@ let internal = function(object) {
  * When a value is a string surrounded by `${}`, it will be assumed to be a _constant_ property that resides on the `mariadb` module and will be interpolated
  * accordingly.
  * For example `driverOptions.pool.someProp = '${SOME_MARIADB_CONSTANT}'` will be interpolated as `pool.someProp = mariadb.SOME_MARIADB_CONSTANT`.
+ * @typedef {typedefs.SQLERConnectionOptions & MDBConnectionOptionsType} MDBConnectionOptions
  */
 
 /**
@@ -448,7 +453,7 @@ let internal = function(object) {
  * contains an object it will be _interpolated_ for property values on the `mariadb` module.
  * For example, `binds.name = '${SOME_MARIADB_CONSTANT}'` will be interpolated as
  * `binds.name = mariadb.SOME_MARIADB_CONSTANT`.
- * @typedef {SQLERExecOptions} MDBExecOptions
+ * @typedef {Object} MDBExecOptionsType
  * @property {Object} [driverOptions] The `mariadb` module specific options.
  * @property {String} [driverOptions.preparedStatementDatabase] The database name to use when generating prepared statements for the given execution. Since prepared
  * statements are scoped only for a given connection and a temporary stored procedure is used to execute prepared statements, __`preparedStatementDatabase` is
@@ -460,6 +465,7 @@ let internal = function(object) {
  * `driverOptions.exec.someDriverProp = mariadb.SOME_MARIADB_CONSTANT`.
  * @property {Boolean} [driverOptions.exec.namedPlaceholders=true] Truthy to use named parameters in MariaDB/MySQL or falsy to convert the named parameters into a
  * positional array of bind values.
+ * @typedef {typedefs.SQLERExecOptions & MDBExecOptionsType} MDBExecOptions
  */
 
 /**
