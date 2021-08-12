@@ -3,9 +3,12 @@
 // TODO : ESM comment the following lines...
 const { Labrat, LOGGER } = require('@ugate/labrat');
 const { Manager } = require('sqler');
+const typedefs = require('sqler/typedefs');
+const Dialect = require('../../index');
 const Path = require('path');
 const Fs = require('fs');
 const Os = require('os');
+const Stream = require('stream');
 const { expect } = require('@hapi/code');
 const readChunk = require('read-chunk');
 const imageType = require('image-type');
@@ -110,50 +113,32 @@ class Tester {
    */
   static async crud() {
     Labrat.header(`${test.vendor}: Running CRUD tests`, 'info');
-    const rslts = new Array(3);
-    let rslti = -1, lastUpdated;
-
-    // expect CRUD results
-    const crudly = async (rslt, label, nameIncl, count = 2) => {
-      if (!rslt.rows) return;
-      expect(rslt.rows, `CRUD ${label} rows`).array();
-      if (!label.includes('read')) return;
-      expect(rslt.rows, `CRUD ${label} rows.length`).length(count);
-      let updated;
-      for (let row of rslt.rows) {
-        expect(row, `CRUD ${label} row`).object();
-        if (nameIncl) expect(row.name, `CRUD ${label} row.name`).includes(nameIncl);
-        updated = row.updated;
-        expect(updated, `CRUD ${label} row.updated`).date();
-        if (lastUpdated) expect(updated, `CRUD ${label} row.updated > lastUpdated`).greaterThan(lastUpdated);
-        // expect binary report image
-        if (row.report) {
-          expect(row.report, 'row.report').to.be.buffer();
-          if (row.reportPath) {
-            const reportBuffer = readChunk.sync(row.reportPath, 0, 12);
-            const reportType = imageType(reportBuffer);
-            expect(reportType, 'row.report Image Type').to.be.object();
-            expect(reportType.mime, 'row.report Image Mime-Type').to.equal('image/png');
-          }
-        }
-      }
-      lastUpdated = updated;
-    };
+    const rslts = new Array(7);
+    let rslti = -1, state = {};
 
     const create = getCrudOp('create', test.vendor);
     rslts[++rslti] = await create(test.mgr, test.vendor);
-    crudly(rslts[rslti], 'create');
+    crudly(state, { label: 'create' }, rslts[rslti]);
 
     const read = getCrudOp('read', test.vendor);
     rslts[++rslti] = await read(test.mgr, test.vendor);
-    crudly(rslts[rslti], 'read', 'TABLE');
+    crudly(state, { label: 'read', nameIncl: 'TABLE' }, rslts[rslti]);
+
+    state.lastUpdated = null; // streams will have different date formatting due to JSON.stringify
+    const readStream = getCrudOp('read.stream', test.vendor);
+    rslts[++rslti] = await readStream(test.mgr, test.vendor);
+    crudly(state, { label: 'read stream', nameIncl: 'TABLE', streamClass: Stream.Readable }, rslts[rslti]);
+
+    // const updateStream = getCrudOp('update.stream', test.vendor);
+    // rslts[++rslti] = await updateStream(test.mgr, test.vendor);
+    // crudly(state, { label: 'update stream', streamClass: Stream.Writable }, rslts[rslti]);
 
     const update = getCrudOp('update', test.vendor);
     rslts[++rslti] = await update(test.mgr, test.vendor);
-    crudly(rslts[rslti], 'update');
+    crudly(state, { label: 'update' }, rslts[rslti]);
 
     rslts[++rslti] = await read(test.mgr, test.vendor);
-    crudly(rslts[rslti], 'update read', 'UPDATE');
+    crudly(state, { label: 'update read', nameIncl: 'UPDATE' }, rslts[rslti]);
 
     // extra update to test procedure
     await test.mgr.db[test.vendor].update.table.rows({
@@ -165,10 +150,10 @@ class Tester {
 
     const del = getCrudOp('delete', test.vendor);
     rslts[++rslti] = await del(test.mgr, test.vendor);
-    crudly(rslts[rslti], 'delete');
+    crudly(state, { label: 'delete' }, rslts[rslti]);
 
     rslts[++rslti] = await read(test.mgr, test.vendor);
-    crudly(rslts[rslti], 'delete read', null, 0);
+    crudly(state, { label: 'delete read', count: 0 }, rslts[rslti]);
 
     if (LOGGER.debug) LOGGER.debug(`CRUD ${test.vendor} execution results:`, ...rslts);
     Labrat.header(`${test.vendor}: Completed CRUD tests`, 'info');
@@ -218,6 +203,16 @@ class Tester {
         id2: 500, name2: 'SHOULD NEVER GET INSERTED', report2: Buffer.from('INVALID'), created2: date, updated2: date
       }
     });
+  }
+
+  static async readStream() {
+    Labrat.header(`${test.vendor}: Running read stream tests`, 'info');
+    const rslts = new Array(1);
+    let rslti = -1, state = {};
+
+    const read = getCrudOp('read.stream', test.vendor);
+    rslts[++rslti] = await read(test.mgr, test.vendor);
+    crudly(state, { label: 'read stream', nameIncl: 'TABLE', streamClass: Stream.Readable }, rslts[rslti]);
   }
 
   //====================== Configurations ======================
@@ -431,6 +426,60 @@ function getCrudOp(name, vendor, setupKey) {
   const base = Path.join(process.cwd(), `test/lib/${vendor}${setupKey ? '/setup' : ''}`);
   const pth = Path.join(base, `${name}.${setupKey || 'table.rows'}.js`);
   return require(pth);
+}
+
+/**
+ * Validates an CRUD execution result
+ * @param {Object} [state] State that spans multiple calls to this function
+ * @param {*} [state.lastUpdated] The last `row.updated` (will be set)
+ * @param {Object} expectOpts The expect options
+ * @param {String} expectOpts.label The label to use for `expect`
+ * @param {String} [expectOpts.nameIncl] A name to check to see if `row.name` includes it
+ * @param {Number} [expectOpts.count=2] The expected count for the result rows
+ * @param {Object} [expectOpts.streamClass] The expected stream instance name (e.g. `Stream.Readable`, `Stream.Writable`, etc)
+ * @param {typedefs.SQLERExecResults} rslt The execution results
+ */
+function crudly(state, expectOpts, rslt) {
+  if (!rslt.rows) return;
+  expectOpts.count = expectOpts.hasOwnProperty('count') ? expectOpts.count : 2;
+  expect(rslt.rows, `CRUD ${expectOpts.label} rows`).array();
+  if (!expectOpts.label.includes('read')) return;
+  expect(rslt.rows, `CRUD ${expectOpts.label} rows.length`).length(expectOpts.streamClass ? 1 : expectOpts.count);
+  let updated;
+  const expectRow = (row) => {
+    expect(row, `CRUD ${expectOpts.label} row`).object();
+    if (expectOpts.nameIncl) expect(row.name, `CRUD ${expectOpts.label} row.name`).includes(expectOpts.nameIncl);
+    updated = row.updated && expectOpts.streamClass ? new Date(row.updated) /* coming from JSON file */ : row.updated;
+    expect(updated, `CRUD ${expectOpts.label} row.updated`).date();
+    if (state && state.lastUpdated) expect(updated, `CRUD ${expectOpts.label} row.updated > lastUpdated`).greaterThan(state.lastUpdated);
+    // expect binary report image
+    if (row.report) {
+      expect(row.report, `CRUD ${expectOpts.label} row.report`).to.be.buffer();
+      if (row.reportPath) {
+        const reportBuffer = readChunk.sync(row.reportPath, 0, 12);
+        const reportType = imageType(reportBuffer);
+        expect(reportType, `CRUD ${expectOpts.label} row.report Image Type`).to.be.object();
+        expect(reportType.mime, `CRUD ${expectOpts.label} row.report Image Mime-Type`).to.equal('image/png');
+      }
+    }
+  };
+  let rows;
+  if (expectOpts.streamClass) {
+    // should be set by the executing script
+    expect(rslt.jsonFile, `CRUD ${expectOpts.label} jsonFile`).not.empty();
+    rows = JSON.parse(Fs.readFileSync(rslt.jsonFile, { encoding: 'utf-8' }));
+    expect(rows, `CRUD ${expectOpts.label} jsonFile rows`).array();
+    expect(rows, `CRUD ${expectOpts.label} jsonFile rows.length`).length(expectOpts.count);
+    for (let row of rslt.rows) {
+      expect(row, `CRUD ${expectOpts.label} class`).instanceOf(expectOpts.streamClass);
+    }
+  } else {
+    rows = rslt.rows;
+  }
+  for (let row of rows) {
+    expectRow(row);
+  }
+  if (state) state.lastUpdated = updated;
 }
 
 /**
