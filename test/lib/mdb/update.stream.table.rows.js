@@ -1,5 +1,12 @@
 'use strict';
 
+const Stream = require('stream');
+// node >= v16 :
+// const { pipeline } = require('stream/promises');
+// node < 16 :
+const Util = require('util');
+const pipeline = Util.promisify(Stream.pipeline);
+
 // export just to illustrate module usage
 module.exports = async function runExample(manager, connName) {
 
@@ -8,12 +15,18 @@ module.exports = async function runExample(manager, connName) {
   // binds
   const table1BindsArray = [
     {
-      id: 1, name: '', updated: date
-    }
+      id: 100, name: '', updated: date
+    },
+    {
+      id: 200, name: '', updated: date
+    },
   ];
   const table2BindsArray = [
     {
-      id2: 1, name2: '', updated2: date
+      id2: 100, name2: '', updated2: date
+    },
+    {
+      id2: 200, name2: '', updated2: date
     }
   ];
   const rtn = {};
@@ -30,61 +43,82 @@ module.exports = async function runExample(manager, connName) {
   await explicitTransactionUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray);
 
   // Using a prepared statement:
-  await preparedStatementUpdate(manager, connName, rtn, table1BindsArray);
+  // await preparedStatementUpdate(manager, connName, rtn, table1BindsArray);
 
   // Using a prepared statement within an explicit transaction
-  await preparedStatementExplicitTxUpdate(manager, connName, rtn, table1BindsArray);
+  // await preparedStatementExplicitTxUpdate(manager, connName, rtn, table1BindsArray);
 
   return rtn;
 };
 
 async function implicitTransactionUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
+  // simply rename all the bind names to reflect the action being performed
+  nameAll('Implicit transaction', table1BindsArray, table2BindsArray);
+
+  let ni = 0;
+  const bindsArrays = [ table1BindsArray, table2BindsArray ];
   // don't exceed connection pool count
-  rtn.txImpRslts = new Array(table1BindsArray.length + table2BindsArray.length);
-
-  // simple iterator over all the binds
-  forEach('Implicit transaction', table1BindsArray, table2BindsArray, (idx, ti, ri, binds, nameProp) => {
-
-    // Example execution in parallel using an implicit transaction for
-    // each SQL execution (autoCommit = true is the default)
-    rtn.txImpRslts[idx] = manager.db[connName].update[`table${ti + 1}`].rows({
-      name: binds[nameProp], // execution name is optional
-      binds
+  rtn.txImpRslts = new Array(bindsArrays.length);
+  for (let bindsArray of bindsArrays) {
+    // Example using an implicit transaction for each streamed (autoCommit = true is the default)
+    rtn.txImpRslts[ni] = await manager.db[connName].update[`table${ni + 1}`].rows({
+      // read binds will be batched in groups of 1 before streaming them to the database since
+      // execOpts.stream = 1, but we could have batched them in groups (stream = 2) as well
+      // https://mariadb.com/kb/en/connector-nodejs-promise-api/#connectionbatchsql-values-promise
+      stream: 1
+      // no need to set execOpts.binds since they will be streamed from the read instead
     });
-
-  });
-
-  // could have also ran is series by awaiting when the SQL function is called
-  for (let i = 0; i < rtn.txImpRslts.length; i++) {
-    rtn.txImpRslts[i] = await rtn.txImpRslts[i];
+    
+    // now that the write streams are ready and the read binds have been renamed,
+    // we can cycle through the bind arrays and write them to the appropriate tables
+    for (let writeStream of rtn.txImpRslts[ni].rows) {
+      await pipeline(
+        // here we're just using some static values for illustration purposes, but they can come from a
+        // any readable stream source like a file, database, etc. as long as they are "transformed"
+        // into JSON binds before the sqler writable stream receives them
+        Stream.Readable.from(bindsArray),
+        writeStream
+      );
+    }
+    ni++;
   }
 }
 
 async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
-  // don't exceed connection pool count
-  rtn.txExpRslts = new Array(table1BindsArray.length + table2BindsArray.length);
-
   let tx;
   try {
     // start a transaction
     tx = await manager.db[connName].beginTransaction();
 
-    // simple iterator over all the binds
-    forEach('Explicit transaction', table1BindsArray, table2BindsArray, (idx, ti, ri, binds, nameProp) => {
+    // simply rename all the bind names to reflect the action being performed
+    nameAll('Explicit transaction', table1BindsArray, table2BindsArray);
 
-      // Example execution in parallel (same transacion)
-      rtn.txExpRslts[idx] = manager.db[connName].update[`table${ti + 1}`].rows({
-        name: binds[nameProp], // execution name is optional
-        binds,
-        autoCommit: false,
-        transactionId: tx.id, // ensure execution takes place within transaction
+    let ni = 0;
+    const bindsArrays = [ table1BindsArray, table2BindsArray ];
+    // don't exceed connection pool count
+    rtn.txExpRslts = new Array(bindsArrays.length);
+    for (let bindsArray of bindsArrays) {
+      // Example using an implicit transaction for each streamed (autoCommit = true is the default)
+      rtn.txExpRslts[ni] = await manager.db[connName].update[`table${ni + 1}`].rows({
+        // read binds will be batched in groups of 1 before streaming them to the database since
+        // execOpts.stream = 1, but we could have batched them in groups (stream = 2) as well
+        // https://mariadb.com/kb/en/connector-nodejs-promise-api/#connectionbatchsql-values-promise
+        stream: 1
+        // no need to set execOpts.binds since they will be streamed from the read instead
       });
-
-    });
-  
-    // could have also ran is series by awaiting when the SQL function is called
-    for (let i = 0; i < rtn.txExpRslts.length; i++) {
-      rtn.txExpRslts[i] = await rtn.txExpRslts[i];
+      
+      // now that the write streams are ready and the read binds have been renamed,
+      // we can cycle through the bind arrays and write them to the appropriate tables
+      for (let writeStream of rtn.txExpRslts[ni].rows) {
+        await pipeline(
+          // here we're just using some static values for illustration purposes, but they can come from a
+          // any readable stream source like a file, database, etc. as long as they are "transformed"
+          // into JSON binds before the sqler writable stream receives them
+          Stream.Readable.from(bindsArray),
+          writeStream
+        );
+      }
+      ni++;
     }
 
     // commit the transaction
@@ -183,10 +217,10 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
   }
 }
 
-// just a utility function to iterate over muliple bind arrays and update bind names
-function forEach(label, table1BindsArray, table2BindsArray, itemHandler) {
+// just a utility function to iterate over muliple bind arrays and rename them
+function nameAll(label, table1BindsArray, table2BindsArray) {
   const ln = table1BindsArray.length + table2BindsArray.length;
-  for (let i = 0, ti, ri, barr, nameProp; i < ln; i++) {
+  for (let i = 0, ti, ri, barr; i < ln; i++) {
     // select which table the binds are for
     if (i < table1BindsArray.length) {
       ti = 0;
@@ -197,11 +231,8 @@ function forEach(label, table1BindsArray, table2BindsArray, itemHandler) {
       ri = i - table1BindsArray.length;
       barr = table2BindsArray;
     }
-    nameProp = `name${ti ? ti + 1 : ''}`;
-
     // update with expanded name
-    barr[ri][nameProp] = `TABLE: ${ti + 1}, ROW: ${ri + 1}, UPDATE: "${label} ${i + 1}"`;
-
-    itemHandler(i, ti, ri, barr[ri], nameProp);
+    barr[ri][`name${ti ? ti + 1 : ''}`] = `TABLE: ${ti + 1}, ROW: ${ri + 1}, UPDATE: "${label} ${i + 1}"`;
   }
+  return [ 'name', 'name2' ];
 }

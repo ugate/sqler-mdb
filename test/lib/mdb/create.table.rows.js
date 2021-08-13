@@ -7,7 +7,8 @@ module.exports = async function runExample(manager, connName) {
 
   const date = new Date();
 
-  // The driver module currently doesn't support Fs.ReadStream/Fs.createReadStream()
+  // The driver module currently doesn't support streaming into a column
+  // (e.g. Fs.createReadStream())
   const report = await Fs.promises.readFile('./test/files/audit-report.png');
 
   // Insert rows into multiple tables within a single execution

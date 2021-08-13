@@ -112,52 +112,14 @@ class Tester {
    * Test CRUD operations for a specified `priv.vendor` and `priv.mgr`
    */
   static async crud() {
-    Labrat.header(`${test.vendor}: Running CRUD tests`, 'info');
-    const rslts = new Array(7);
-    let rslti = -1, state = {};
+    return crud(null, 2 /* one for each table */);
+  }
 
-    const create = getCrudOp('create', test.vendor);
-    rslts[++rslti] = await create(test.mgr, test.vendor);
-    crudly(state, { label: 'create' }, rslts[rslti]);
-
-    const read = getCrudOp('read', test.vendor);
-    rslts[++rslti] = await read(test.mgr, test.vendor);
-    crudly(state, { label: 'read', nameIncl: 'TABLE' }, rslts[rslti]);
-
-    state.lastUpdated = null; // streams will have different date formatting due to JSON.stringify
-    const readStream = getCrudOp('read.stream', test.vendor);
-    rslts[++rslti] = await readStream(test.mgr, test.vendor);
-    crudly(state, { label: 'read stream', nameIncl: 'TABLE', streamClass: Stream.Readable }, rslts[rslti]);
-
-    // const updateStream = getCrudOp('update.stream', test.vendor);
-    // rslts[++rslti] = await updateStream(test.mgr, test.vendor);
-    // crudly(state, { label: 'update stream', streamClass: Stream.Writable }, rslts[rslti]);
-
-    const update = getCrudOp('update', test.vendor);
-    rslts[++rslti] = await update(test.mgr, test.vendor);
-    crudly(state, { label: 'update' }, rslts[rslti]);
-
-    rslts[++rslti] = await read(test.mgr, test.vendor);
-    crudly(state, { label: 'update read', nameIncl: 'UPDATE' }, rslts[rslti]);
-
-    // extra update to test procedure
-    await test.mgr.db[test.vendor].update.table.rows({
-      binds: {
-        id: 1, name: 'TABLE: 1, ROW: 1 (UPDATE)', updated: new Date(),
-        id2: 1, name2: 'TABLE: 2, ROW: 1 (UPDATE)', updated2: new Date()
-      }
-    });
-
-    const del = getCrudOp('delete', test.vendor);
-    rslts[++rslti] = await del(test.mgr, test.vendor);
-    crudly(state, { label: 'delete' }, rslts[rslti]);
-
-    rslts[++rslti] = await read(test.mgr, test.vendor);
-    crudly(state, { label: 'delete read', count: 0 }, rslts[rslti]);
-
-    if (LOGGER.debug) LOGGER.debug(`CRUD ${test.vendor} execution results:`, ...rslts);
-    Labrat.header(`${test.vendor}: Completed CRUD tests`, 'info');
-    return rslts;
+  /**
+   * Test CRUD stream operations for a specified `priv.vendor` and `priv.mgr`
+   */
+  static async crudStream() {
+    return crud('stream', 4 /* 2 for each table */);
   }
 
   static async execDriverOptionsAlt() {
@@ -363,6 +325,8 @@ class Tester {
 // TODO : ESM comment the following line...
 module.exports = Tester;
 
+//
+
 /**
  * Generates a configuration
  * @param {Object} [overrides] The connection configuration override properties. Each property will be deleted from the returned
@@ -416,6 +380,64 @@ function getConf(overrides) {
 }
 
 /**
+ * Test CRUD operations for a specified `priv.vendor` and `priv.mgr`
+ * @param {String} [type] The type of CRUD tests to perform. For example, for an initial __create__ rows, with `type = 'stream'` would
+ * use a module source with prefix of `create.stream` while _omitting_ would use a prefix of just `create`. See {@link getCrudOp}.
+ * @param {Number} [count=0] The expected record count for each CRUD operation (other than the read after deletion)
+ * @returns {Array} All of the CRUD results
+ */
+async function crud(type, count = 0) {
+  Labrat.header(`${test.vendor}: Running CRUD tests`, 'info');
+  const rslts = new Array(7);
+  const isStream = type === 'stream';
+  const streamClassRead = isStream ? Stream.Readable : null;
+  const streamClassWrite = isStream ? Stream.Writable : null;
+  const typd = type ? `.${type}` : '';
+  let rslti = -1, state = {};
+
+  const create = getCrudOp(`create${typd}`, test.vendor);
+  rslts[++rslti] = await create(test.mgr, test.vendor);
+  crudly(state, { label: `create${typd}`, streamClass: streamClassWrite, count }, rslts[rslti]);
+
+  const read = getCrudOp(`read${typd}`, test.vendor);
+  rslts[++rslti] = await read(test.mgr, test.vendor);
+  crudly(state, { label: `read${typd}`, streamClass: streamClassRead, nameIncl: isStream ? type.toUpperCase() : 'TABLE', count }, rslts[rslti]);
+
+  const update = getCrudOp(`update${typd}`, test.vendor);
+  rslts[++rslti] = await update(test.mgr, test.vendor);
+  crudly(state, { label: `update${typd}`, streamClass: streamClassWrite, count }, rslts[rslti]);
+
+  rslts[++rslti] = await read(test.mgr, test.vendor);
+  crudly(state, { label: `update read${typd}`, streamClass: streamClassRead, nameIncl: 'UPDATE', count }, rslts[rslti]);
+
+  // extra update to test procedure
+  /** @type {typedefs.SQLERExecOptions} */
+  const xuOpts = {
+    binds: {
+      id: 1, name: 'TABLE: 1, ROW: 1 (UPDATE)', updated: new Date(),
+      id2: 1, name2: 'TABLE: 2, ROW: 1 (UPDATE)', updated2: new Date()
+    }
+  };
+  if (isStream) {
+    // xuOpts.stream = 1;
+    // const rxus = await test.mgr.db[test.vendor].update.table.rows(xuOpts);
+  } else {
+    await test.mgr.db[test.vendor].update.table.rows(xuOpts);
+  }
+
+  const del = getCrudOp(`delete${typd}`, test.vendor);
+  rslts[++rslti] = await del(test.mgr, test.vendor);
+  crudly(state, { label: `delete${typd}`, streamClass: streamClassWrite, count }, rslts[rslti]);
+
+  rslts[++rslti] = await read(test.mgr, test.vendor);
+  crudly(state, { label: `delete read${typd}`, streamClass: streamClassRead, count: 0 }, rslts[rslti]);
+
+  if (LOGGER.debug) LOGGER.debug(`CRUD${type ? ` ${type}` : ''} ${test.vendor} execution results:`, ...rslts);
+  Labrat.header(`${test.vendor}: Completed CRUD${type ? ` ${type}` : ''} tests`, 'info');
+  return rslts;
+}
+
+/**
  * Gets the `async function` that will execute a CRUD operation
  * @param {String} name The name of the CRUD operation (e.g. `create`, `read`, etc.)
  * @param {String} vendor The vendor to use (e.g. `oracle`, `mssql`, etc.)
@@ -435,13 +457,13 @@ function getCrudOp(name, vendor, setupKey) {
  * @param {Object} expectOpts The expect options
  * @param {String} expectOpts.label The label to use for `expect`
  * @param {String} [expectOpts.nameIncl] A name to check to see if `row.name` includes it
- * @param {Number} [expectOpts.count=2] The expected count for the result rows
+ * @param {Number} [expectOpts.count=0] The expected count for the result rows
  * @param {Object} [expectOpts.streamClass] The expected stream instance name (e.g. `Stream.Readable`, `Stream.Writable`, etc)
  * @param {typedefs.SQLERExecResults} rslt The execution results
  */
 function crudly(state, expectOpts, rslt) {
   if (!rslt.rows) return;
-  expectOpts.count = expectOpts.hasOwnProperty('count') ? expectOpts.count : 2;
+  expectOpts.count = expectOpts.hasOwnProperty('count') ? expectOpts.count : 0;
   expect(rslt.rows, `CRUD ${expectOpts.label} rows`).array();
   if (!expectOpts.label.includes('read')) return;
   expect(rslt.rows, `CRUD ${expectOpts.label} rows.length`).length(expectOpts.streamClass ? 1 : expectOpts.count);

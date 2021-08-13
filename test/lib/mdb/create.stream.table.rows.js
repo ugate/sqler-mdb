@@ -13,28 +13,37 @@ module.exports = async function runExample(manager, connName) {
 
   const date = new Date();
 
-  await pipeline(
-    // readable should output the binds
-    // here we're just using some static values for illustration purposes
-    Stream.Readable.from([
-      {
-        id: 100, name: 'TABLE: 1, ROW: 1, STREAM: 1', created: date, updated: date,
-        id2: 100, name2: 'TABLE: 2, ROW: 1, STREAM: 1', report2: report, created2: date, updated2: date
-      }
-    ])
-  )
-
-  // The driver module currently doesn't support Fs.ReadStream/Fs.createReadStream()
+  // The driver module currently doesn't support streaming into a column
+  // (e.g. Fs.createReadStream())
   const report = await Fs.promises.readFile('./test/files/audit-report.png');
 
   // Insert rows into multiple tables within a single execution
-  const rslt = await manager.db[connName].create.table.rows({
-    stream: 1, // stream for each record
-    binds: {
-      id: 100, name: 'TABLE: 1, ROW: 1, STREAM: 1', created: date, updated: date,
-      id2: 100, name2: 'TABLE: 2, ROW: 1, STREAM: 1', report2: report, created2: date, updated2: date
-    }
+  const rslts = await manager.db[connName].create.table.rows({
+    // read binds will be batched in groups of 2 before streaming them to the database since
+    // execOpts.stream = 2, but we could have batched them individually (stream = 1) as well
+    // https://mariadb.com/kb/en/connector-nodejs-promise-api/#connectionbatchsql-values-promise
+    stream: 2
+    // no need to set execOpts.binds since they will be streamed from the read instead
   });
 
-  return rslt;
+  for (let writeStream of rslts.rows) {
+    await pipeline(
+      // here we're just using some static values for illustration purposes, but they can come from a
+      // any readable stream source like a file, database, etc. as long as they are "transformed"
+      // into JSON binds before the sqler writable stream receives them
+      Stream.Readable.from([
+        {
+          id: 100, name: 'TABLE: 1, ROW: 1, STREAM', created: date, updated: date,
+          id2: 100, name2: 'TABLE: 2, ROW: 1, STREAM', report2: report, created2: date, updated2: date
+        },
+        {
+          id: 200, name: 'TABLE: 1, ROW: 2, STREAM', created: date, updated: date,
+          id2: 200, name2: 'TABLE: 2, ROW: 2, STREAM', report2: report, created2: date, updated2: date
+        }
+      ]),
+      writeStream
+    )
+  }
+
+  return rslts;
 };

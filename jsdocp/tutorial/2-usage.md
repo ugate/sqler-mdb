@@ -20,7 +20,7 @@ Test code that illustrates how to use MariaDB/MySQL with various examples
 ```jsdocp ./test/fixtures/run-example.js
 ```
 
-__Create Database:__
+__Create Database:__<ins id="create_db"></ins>
 
 ```jsdocp ./test/db/mdb/setup/create.database.sql
 -- db/mdb/setup/create.database.sql
@@ -29,7 +29,7 @@ __Create Database:__
 ```jsdocp ./test/lib/mdb/setup/create.database.js
 ```
 
-__Create Table(s):__
+__Create Table(s):__<ins id="create_tables"></ins>
 
 ```jsdocp ./test/db/mdb/setup/create.table1.sql
 -- db/mdb/setup/create.table1.sql
@@ -90,7 +90,7 @@ __Delete Rows:__<ins id="delete"></ins>
 
 __Create Rows (streaming using the same SQL as the [prior create rows example](#create)):__<ins id="create_stream"></ins>
 
-```jsdocp ./test/lib/mdb/create.table.rows.js
+```jsdocp ./test/lib/mdb/create.stream.table.rows.js
 ```
 
 __Read Rows (streaming using the same SQL as the [prior read rows example](#read)):__<ins id="read_stream"></ins>
@@ -108,7 +108,7 @@ __Delete Rows (streaming using the same SQL as the [prior delete rows example](#
 ```jsdocp ./test/lib/mdb/delete.stream.table.rows.js
 ```
 
-__Delete Database:__
+__Delete Database:__<ins id="delete_db"></ins>
 
 ```jsdocp ./test/db/mdb/setup/delete.database.sql
 -- db/mdb/setup/delete.database.sql

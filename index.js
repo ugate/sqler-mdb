@@ -1,5 +1,6 @@
 'use strict';
 
+const DBDriver = require('mariadb');
 const Stream = require('stream');
 const typedefs = require('sqler/typedefs');
 
@@ -24,7 +25,7 @@ class MDBDialect {
     if (!connConf.driverOptions) throw new Error('Connection configuration is missing required driverOptions');
     const dlt = internal(this);
     dlt.at.track = track;
-    dlt.at.driver = require('mariadb');
+    dlt.at.driver = DBDriver;
     dlt.at.transactions = new Map();
     dlt.at.stmtFuncs = new Map();
     dlt.at.stmts = new Map();
@@ -75,6 +76,8 @@ class MDBDialect {
    */
   async init(opts) {
     const dlt = internal(this), numSql = opts.numOfPreparedFuncs;
+    /** @type {InternalFlightRecorder} */
+    let recorder;
     let conn, error;
     try {
       dlt.at.pool = dlt.at.driver.createPool(dlt.at.opts.pool);
@@ -87,6 +90,7 @@ class MDBDialect {
       await conn.ping();
       return dlt.at.pool;
     } catch (err) {
+      recorder = errored(`sqler-mdb: connection pool "${dlt.at.opts.id}" could not be created`, dlt, null, err);
       error = err;
       const msg = `sqler-mdb: connection pool "${dlt.at.opts.id}" could not be created`;
       if (dlt.at.errorLogger) dlt.at.errorLogger(`${msg} (passwords are omitted from error) ${JSON.stringify(err, null, ' ')}`);
@@ -97,7 +101,7 @@ class MDBDialect {
       throw err;
     } finally {
       if (conn) {
-        await operation(dlt, 'release', false, conn, opts, null, error)();
+        await finalize(recorder, dlt, operation(dlt, 'release', false, conn, opts, null, recorder && recorder.error));
       }
     }
   }
@@ -143,12 +147,16 @@ class MDBDialect {
    * @returns {typedefs.SQLERExecResults} The execution results
    */
   async exec(sql, opts, frags, meta, errorOpts) {
+    /** @type {InternalFlightRecorder} */
+    let recorder;
     const dlt = internal(this);
     const txo = opts.transactionId ? dlt.at.transactions.get(opts.transactionId) : null;
-    let conn, rslts, error;
-    /** @type {ExecMeta} */
+    /** @type {DBDriver.Connection} */
+    let conn;
+    let rslts;
+    /** @type {InternalExecMeta} */
     let execMeta;
-    /** @type {MDBPreparedStatement} */
+    /** @type {InternalPreparedStatement} */
     let pso;
     try {
       /** @type {typedefs.SQLERExecResults} */
@@ -163,24 +171,17 @@ class MDBDialect {
       if (!txo && !opts.prepareStatement && opts.type === 'READ') {
         if (opts.stream >= 0) {
           rslts = [ await createReadStream(dlt, execMeta, opts, txo) ];
-        } else {
+        } else { // pool.query will auto-release the connection
           rslts = await dlt.at.pool.query(execMeta.sql, execMeta.binds);
         }
       } else {
-        if (opts.prepareStatement) {
-          if (opts.stream >= 0) {
-
-          } else {
-            execMeta = createExecMeta(dlt, sql, opts);
-            rslts = await pso.exec();
-          }
+        if (opts.stream >= 0) {
+          rslts = [ createWriteStream(dlt, sql, opts, txo) ];
+        } else if (opts.prepareStatement) {
+          rslts = await pso.exec(opts.binds);
         } else {
-          if (opts.stream >= 0) {
-            rslts = [ createWriteStream(dlt, sql, opts, txo) ];
-          } else {
-            conn = txo ? null : await dlt.at.pool.getConnection();
-            rslts = await (txo ? txo.conn : conn).query(execMeta.sql, execMeta.binds);
-          }
+          conn = txo ? null : await dlt.at.pool.getConnection();
+          rslts = await (txo ? txo.conn : conn).query(execMeta.sql, execMeta.binds);
         }
         if (txo) {
           if (rtn.unprepare) {
@@ -199,21 +200,11 @@ class MDBDialect {
       rtn.raw = rslts;
       return rtn;
     } catch (err) {
-      error = err;
-      if (dlt.at.errorLogger) {
-        dlt.at.errorLogger(`Failed to execute the following SQL: ${sql}`, err);
-      }
-      err.sqlerMDB = {};
-      if (pso) err.sqlerMDB.preparedStmtProc = pso.psql;
+      recorder = errored(`Failed to execute the following SQL:\n${sql}`, dlt, meta, err);
       throw err;
     } finally {
-      // transactions/prepared statements need the connection to remain open until commit/rollback/unprepare
-      if (conn && !opts.prepareStatement) {
-        try {
-          await operation(dlt, 'release', false, conn, opts)();
-        } catch (cerr) {
-          if (error) error.releaseError = cerr;
-        }
+      if (conn) {
+        await finalize(recorder, dlt, operation(dlt, 'release', false, conn, opts));
       }
     }
   }
@@ -235,9 +226,7 @@ class MDBDialect {
       }
       return dlt.at.state.pending;
     } catch (err) {
-      if (dlt.at.errorLogger) {
-        dlt.at.errorLogger(`sqler-mdb: Failed to close connection pool "${dlt.at.opts.id}" (${statusLabel(dlt)})`, err);
-      }
+      errored(`sqler-mdb: Failed to close connection pool "${dlt.at.opts.id}" (${statusLabel(dlt)})`, dlt, null, err);
       throw err;
     }
   }
@@ -251,7 +240,7 @@ class MDBDialect {
 
   /**
    * @protected
-   * @returns {Object} The MariaDB/MySQL driver module
+   * @returns {DBDriver} The MariaDB/MySQL driver module
    */
   get driver() {
     return internal(this).at.driver;
@@ -267,10 +256,10 @@ module.exports = MDBDialect;
  * @param {String} sql the SQL to execute
  * @param {MDBExecOptions} opts The execution options
  * @param {Object} [bindsAlt] An alternative to `opts.binds` that will be used
- * @returns {ExecMeta} The binds metadata
+ * @returns {InternalExecMeta} The binds metadata
  */
 function createExecMeta(dlt, sql, opts, bindsAlt) {
-  /** @type {ExecMeta} */
+  /** @type {InternalExecMeta} */
   const rtn = {};
 
   // interpolate and remove unused binds since
@@ -317,10 +306,12 @@ function createExecMeta(dlt, sql, opts, bindsAlt) {
  */
 function operation(dlt, name, reset, txoOrConn, opts, preop) {
   return async () => {
+    /** @type {InternalFlightRecorder} */
+    let recorder = {};
     /** @type {MDBTransactionObject} */
     const txo = opts.transactionId && txoOrConn.tx ? txoOrConn : null;
+    /** @type {DBDriver.Connection} */
     const conn = txo ? txo.conn : txoOrConn;
-    let ierr;
     if (preop === 'unprepare') {
       if (txo.unprepares) {
         for (let unprepare of txo.unprepares.values()) {
@@ -339,21 +330,12 @@ function operation(dlt, name, reset, txoOrConn, opts, preop) {
         dlt.at.state.pending = 0;
       }
     } catch (err) {
-      ierr = err;
-      if (dlt.at.errorLogger) {
-        dlt.at.errorLogger(`sqler-mdb: Failed to ${name} ${dlt.at.state.pending} transaction(s) with options: ${
-          opts ? JSON.stringify(opts) : 'N/A'}`, ierr);
-      }
-      throw ierr;
+      recorder = errored(`sqler-mdb: Failed to ${name} ${dlt.at.state.pending} transaction(s) with options: ${
+        opts ? JSON.stringify(opts) : 'N/A'}`, dlt, null, err);
+      throw err;
     } finally {
-      if (name !== 'end' && name !== 'release') {
-        try {
-          await conn.release();
-        } catch (cerr) {
-          if (ierr) {
-            ierr.releaseError = cerr;
-          }
-        }
+      if (!txo && conn && name !== 'end' && name !== 'release') {
+        await finalize(recorder, dlt, () => Promise.resolve(conn.release()));
       }
     }
     return dlt.at.state.pending;
@@ -361,7 +343,8 @@ function operation(dlt, name, reset, txoOrConn, opts, preop) {
 }
 
 /**
- * 
+ * Either generates a prepared statement when it doesn't currently exist, or returns an existing prepared statement that waits for the original prepared statement
+ * creation/connectivity/setup to complete before performing any executions.
  * @private
  * @param {MDBInternal} dlt The internal MariaDB/MySQL object instance
  * @param {String} sql The raw SQL to execute for the prepared statement
@@ -369,11 +352,11 @@ function operation(dlt, name, reset, txoOrConn, opts, preop) {
  * @param {typedefs.SQLERExecMeta} meta The SQL execution metadata
  * @param {MDBTransactionObject} [txo] The transaction object to use. When not specified, a connection will be established.
  * @param {typedefs.SQLERExecResults} rtn The execution results used by the prepared statement where `unprepare` will be set
- * @returns {MDBPreparedStatement} The prepared statement
+ * @returns {InternalPreparedStatement} The prepared statement
  */
 async function prepared(dlt, sql, opts, meta, txo, rtn) {
   let isPrepare;
-  /** @type {MDBPreparedStatement} */
+  /** @type {InternalPreparedStatement} */
   let pso;
   if (dlt.at.stmts.has(meta.name)) {
     pso = dlt.at.stmts.get(meta.name);
@@ -403,22 +386,38 @@ async function prepared(dlt, sql, opts, meta, txo, rtn) {
   if (isPrepare) {
     pso.name = meta.name;
     pso.shortName = pso.name.length > MAX_MDB_NAME_LGTH ? `sqler_mdb_prep_stmt${Math.floor(Math.random() * 10000)}` : pso.name;
-    pso.execMeta = createExecMeta(dlt, sql, opts, bindsAlt);
-    pso.procedure = `\`${pso.execMeta.dopts.preparedStatementDatabase}\`.\`${pso.shortName}\``;
-    pso.escapedSQL = pso.conn.escape(pso.execMeta.sql); // execMeta.sql.replace(/([^'\\]*(?:\\.[^'\\]*)*)'/g, "$1\\'");
-    pso.bnames = Object.getOwnPropertyNames(pso.execMeta.bndp);
-    pso.psql = preparedStmtProc(pso);
-    pso.procProm = pso.conn.query(pso.psql); // prepare/exec PS (other exec need access to wait for proc to be created)
-    await pso.procProm; // wait for the PS stored proc to be created
-    pso.prepareExecProm = preparedStmtProcExec(pso, conn, pso.execMeta.bndp, true);  // wait for the initial PS stored proc to be created/executed
-    pso.procProm = pso.prepareExecProm = null; // reset promises once they completed
     pso.exec = async (binds) => {
-      /** @type {ExecMeta} */
-      let execMeta;
-      if (binds || !) {
-        execMeta = createExecMeta(dlt, sql, opts, binds);
+      /** @type {InternalFlightRecorder} */
+      let recorder;
+      /** @type {InternalPreparedStatement} */
+      pso = dlt.at.stmts.get(meta.name);
+      try {
+        /** @type {InternalExecMeta} */
+        let execMeta;
+        if (!pso.execMeta) {
+          pso.execMeta = createExecMeta(dlt, sql, opts, binds);
+          pso.procedure = `\`${pso.execMeta.dopts.preparedStatementDatabase}\`.\`${pso.shortName}\``;
+          pso.escapedSQL = pso.conn.escape(pso.execMeta.sql); // execMeta.sql.replace(/([^'\\]*(?:\\.[^'\\]*)*)'/g, "$1\\'");
+          pso.bnames = Object.getOwnPropertyNames(pso.execMeta.bndp);
+          pso.psql = preparedStmtProc(pso);
+          pso.procProm = pso.conn.query(pso.psql); // prepare/exec PS (other exec need access to wait for proc to be created)
+          await pso.procProm; // wait for the PS stored proc to be created
+          pso.prepareExecProm = preparedStmtProcExec(pso, pso.conn, pso.execMeta.bndp, true);  // wait for the initial PS stored proc to be created/executed
+          pso.procProm = pso.prepareExecProm = null; // reset promises once they completed
+          execMeta = pso.execMeta;
+        } else {
+          execMeta = createExecMeta(dlt, sql, opts, binds);
+          if (pso.connProm) await pso.connProm; // wait for the initial PS to establish a connection
+          if (pso.procProm) await pso.procProm; // wait for the initial PS stored proc to be created
+          if (pso.prepareExecProm) await pso.prepareExecProm; // wait for the initial PS to be prepared
+        }
+        return preparedStmtProcExec(pso, pso.conn, execMeta.bndp);
+      } catch (err) {
+        recorder = errored(`sqler-mdb: Failed to execute prepared statement:\n${sql}`, dlt, meta, err);
+        throw err;
+      } finally {
+        await finalize(recorder, dlt);
       }
-      return preparedStmtProcExec(pso, pso.conn, execMeta.bndp);
     };
   } else {
     pso = dlt.at.stmts.get(meta.name);
@@ -436,7 +435,7 @@ async function prepared(dlt, sql, opts, meta, txo, rtn) {
  * - `execute` - Executes the statement using the passed JSON
  * - `prepare_execute` - Prepares and executes the statement using the passed JSON
  * @private
- * @param {MDBPreparedStatement} pso The prepared statement object that will be used to generate the stored procedure
+ * @param {InternalPreparedStatement} pso The prepared statement object that will be used to generate the stored procedure
  * @returns {String} The stored procedure for the prepared statement
  */
 function preparedStmtProc(pso) {
@@ -458,8 +457,8 @@ function preparedStmtProc(pso) {
 /**
  * Calls a prepared statement stored procedure execution 
  * @private
- * @param {MDBPreparedStatement} pso The prepared statement object that will be used to generate the stored procedure
- * @param {Object} conn The connection
+ * @param {InternalPreparedStatement} pso The prepared statement object that will be used to generate the stored procedure
+ * @param {DBDriver.Connection} conn The connection
  * @param {Object} binds The binds
  * @param {Boolean} [prepare] Truthy to prepare the satement before execution
  * @returns {Promise} The prepared statement procedure call promise
@@ -477,15 +476,21 @@ function preparedStmtProcExec(pso, conn, binds, prepare) {
  * @returns {String} The status label
  */
 function statusLabel(dlt) {
-  return `uncommitted transactions: ${dlt.at.state.pending}${dlt.at.pool ? `, total connections: ${dlt.at.pool.totalConnections()}, active connections: ${
-    dlt.at.pool.activeConnections()}, idle connections: ${dlt.at.pool.idleConnections()}, queue size: ${dlt.at.pool.taskQueueSize()}` : ''}`;
+  try {
+    return `uncommitted transactions: ${dlt.at.state.pending}${dlt.at.pool ? `, total connections: ${dlt.at.pool.totalConnections()}, active connections: ${
+      dlt.at.pool.activeConnections()}, idle connections: ${dlt.at.pool.idleConnections()}, queue size: ${dlt.at.pool.taskQueueSize()}` : ''}`;
+  } catch (err) {
+    if (dlt.at.errorLogger) {
+      dlt.at.errorLogger('sqler-mdb: Failed to create status label', err);
+    }
+  }
 }
 
 /**
  * Creates a read stream that batches the read SQL executions
  * @private
  * @param {MDBInternal} dlt The internal MariaDB/MySQL object instance
- * @param {ExecMeta} execMeta The metadata that contains the SQL to execute and the binds parameters to use
+ * @param {InternalExecMeta} execMeta The metadata that contains the SQL to execute and the binds parameters to use
  * @param {MDBExecOptions} opts The execution options
  * @param {MDBTransactionObject} [txo] The transaction object to use. When not specified, a connection will be established on the first write to the stream.
  * @returns {Stream.Readable} The created read stream
@@ -505,27 +510,54 @@ async function createReadStream(dlt, execMeta, opts, txo) {
  * @param {MDBInternal} dlt The internal MariaDB/MySQL object instance
  * @param {String} sql The SQL to execute
  * @param {MDBExecOptions} opts The execution options
+ * @param {typedefs.SQLERExecMeta} meta The SQL execution metadata
  * @param {MDBTransactionObject} [txo] The transaction object to use. When not specified, a connection will be established on the first write to the stream.
  * @returns {Stream.Writable} The created write stream
  */
-function createWriteStream(dlt, sql, opts, txo) {
-  /** @type {ExecMeta} */
-  let execMeta;
+function createWriteStream(dlt, sql, opts, meta, txo) {
+  /** @type {DBDriver.Connection} */
   let conn;
   const writable = dlt.at.track.writable(opts, async (batch) => {
-    const rslts = new Array(batch.length);
-    let bi = 0;
-    for (let binds of batch) {
-      execMeta = createExecMeta(dlt, sql, opts, binds);
-      if ((!txo || !txo.conn) && !conn) {
-        conn = await dlt.at.pool.getConnection();
+    try {
+      /** @type {InternalPreparedStatement} */
+      let pso;
+      if (!conn) {
+        if (opts.prepareStatement) {
+          if (!dlt.at.stmts.has(meta.name)) {
+            throw new Error(`Prepared statement not found for "${meta.name}" during writable stream batch`);
+          }
+          pso = dlt.at.stmts.get(meta.name);
+        } else {
+          conn = txo ? txo.conn : await dlt.at.pool.getConnection();
+        }
       }
-      rslts[bi] = await (txo ? txo.conn : conn).batch(execMeta.sql, execMeta.binds);
-      bi++;
+      let bi = 0;
+      if (opts.prepareStatement) {
+        // prepared statements will not go through conn.batch, but rather the prepared statement exec protocol
+        const rslts = new Array(batch.length);
+        for (let binds of batch) {
+          rslts[bi] = await pso.exec(binds);
+          bi++;
+        }
+        return rslts;
+      } else {
+        // batch all the binds into a single exectuion for a performance gain
+        // https://mariadb.com/kb/en/connector-nodejs-promise-api/#connectionbatchsql-values-promise
+        /** @type {InternalExecMeta} */
+        let execMeta;
+        const bindsArray = new Array(batch.length);
+        for (let binds of batch) {
+          execMeta = createExecMeta(dlt, sql, opts, binds);
+          bindsArray[bi] = execMeta.binds;
+          bi++;
+        }
+        return await conn.batch(execMeta.sql, bindsArray);
+      }
+    } catch (err) {
+
     }
-    return rslts;
   });
-  if (!txo || !txo.conn) {
+  if (!txo && !opts.prepareStatement) {
     writable.on('end', async () => {
       if (!conn) return;
       await operation(dlt, 'release', false, conn, opts)();
@@ -533,6 +565,47 @@ function createWriteStream(dlt, sql, opts, txo) {
   }
   return writable;
 }
+
+/**
+ * Error handler
+ * @param {String} label A label to use to describe the error
+ * @param {MDBInternal} dlt The internal dialect object instance
+ * @param {typedefs.SQLERExecMeta} [meta] The SQL execution metadata
+ * @param {Error} error An error that has occurred
+ * @returns {InternalFlightRecorder} The flight recorder
+ */
+function errored(label, dlt, meta, error) {
+  if (dlt.at.errorLogger) {
+    dlt.at.errorLogger(label, error);
+  }
+  error.sqlerMDB = {};
+  if (meta && dlt.at.stmts.has(meta.name)) {
+    const pso = dlt.at.stmts.get(meta.name);
+    error.sqlerMDB.preparedStmtName = pso.name;
+    error.sqlerMDB.preparedStmtProc = pso.psql;
+  }
+  return { error };
+}
+
+/**
+ * Finally block handler
+ * @param {InternalFlightRecorder} [recorder] The flight recorder
+ * @param {MDBInternal} dlt The internal dialect object instance
+ * @param {Function} [func] An `async function()` that will be invoked in a catch wrapper that will be consumed and recorded when a flight recorder is
+ * provided
+ * @param {String} [funcErrorProperty=releaseError] A property name on the flight recorder error that will be set when the `func` itself errors
+ * @returns {InternalFlightRecorder} The recorded error
+ */
+async function finalize(recorder, dlt, func, funcErrorProperty = 'releaseError') {
+  // transactions/prepared statements need the connection to remain open until commit/rollback/unprepare
+  if (typeof func === 'function') {
+    try {
+      await func();
+    } catch (err) {
+      if (recorder && recorder.error) recorder.error[funcErrorProperty] = err;
+    }
+  }
+} 
 
 // private mapping
 let map = new WeakMap();
@@ -552,20 +625,6 @@ let internal = function(dialect) {
     this: dialect
   };
 };
-
-/**
- * @typedef {Object} MDBInternal
- * @property {MDBDialect} this The dialect instance
- * @property {Object} at The internal dialect state
- * @property {typedefs.SQLERTrack} at.track The track
- * @property {Object} at.driver The dialect driver
- * @property {Map<String, MDBTransactionObject>} at.transactions The transactions map
- * @property {Map<String, MDBPreparedStatement>} at.stmts The prepared statement map
- * @property {MDBExecOptions} at.opts The __global__ execution options
- * @property {Object} at.pool The connection pool
- * @property {typedefs.SQLERState} at.state The __global__ dialect state
- * @private
- */
 
 /**
  * MariaDB + MySQL specific extension of the {@link SQLERConnectionOptions} from the [`sqler`](https://ugate.github.io/sqler/) module.
@@ -623,14 +682,31 @@ let internal = function(dialect) {
  * Transactions are wrapped in a parent transaction object so private properties can be added (e.g. prepared statements)
  * @typedef {Object} MDBTransactionObject
  * @property {typedefs.SQLERTransaction} tx The transaction
- * @property {Object} conn The connection
- * @property {Map} unprepares Map of prepared statement names (key) and no-argument _async_ functions that will be called as a pre-operation call prior to
+ * @property {DBDriver.Connection} conn The connection
+ * @property {Map<String, Function>} unprepares Map of prepared statement names (key) and no-argument _async_ functions that will be called as a pre-operation call prior to
  * `commit` or `rollback` (value)
+ */
+
+// ========================================== Internal Use ==========================================
+
+/**
+ * Internal database use
+ * @typedef {Object} MDBInternal
+ * @property {MDBDialect} this The dialect instance
+ * @property {Object} at The internal dialect state
+ * @property {typedefs.SQLERTrack} at.track The track
+ * @property {DBDriver} at.driver The dialect driver
+ * @property {Map<String, MDBTransactionObject>} at.transactions The transactions map
+ * @property {Map<String, InternalPreparedStatement>} at.stmts The prepared statement map
+ * @property {MDBExecOptions} at.opts The __global__ execution options
+ * @property {Object} at.pool The connection pool
+ * @property {typedefs.SQLERState} at.state The __global__ dialect state
+ * @private
  */
 
 /**
  * Metadata used inpreparation for execution.
- * @typedef {Object} ExecMeta
+ * @typedef {Object} InternalExecMeta
  * @property {MDBExecDriverOptions} dopts The formatted execution driver options.
  * @property {String} sql The formatted/bound execution SQL statement. Will also be set on `dopts.exec.sql` (when present).
  * @property {(Object | Array)} [binds] Either an object that contains the bind parameters as property names and property values as the bound values that can be
@@ -640,19 +716,35 @@ let internal = function(dialect) {
  */
 
 /**
- * @typedef {Object} MDBPreparedStatement
+ * Executes a prepared statement.
+ * @callback InternalPreparedStatementExec
+ * @param {Object} [binds] An object that contains the bind parameters as property names and property values as the bound values (omit to use the original binds
+ * from {@link typedefs.SQLERExecOptions}).
+ * @returns {Object} The prepared statement execution results
+ * @async
+ */
+
+/**
+ * Prepared statement
+ * @typedef {Object} InternalPreparedStatement
  * @property {String} name The prepared statement name
  * @property {String} shortName The short name
  * @property {String} procedure The procedure name that the prepared statement will be stored as
  * @property {String} sql The originating SQL statement
- * @property {ExecMeta} execMeta The execution metadata
+ * @property {InternalExecMeta} execMeta The execution metadata
  * @property {String} escapedSQL The driver escaped SQL for the PS
  * @property {String[]} bnames The bind property names for the PS
  * @property {String} psql The PS SQL that stores the PS
  * @property {Promise} [procProm] The current PS promise for storing the PS
  * @property {Promise} [prepareExecProm] The promise for the initial PS stored proc to be created/executed
- * @property {Promise} [connProm] The promise for the PS connection
- * @property {Object} [conn] The PS connection
- * @property {Function} exec The `async function()` that executes the prepared statement SQL and returns the results
+ * @property {Promise<DBDriver.Connection>} [connProm] The promise for the PS connection
+ * @property {DBDriver.Connection} [conn] The PS connection
+ * @property {InternalPreparedStatementExec} exec The `async function()` that executes the prepared statement SQL and returns the results
  * @private
+ */
+
+/**
+ * @typedef {Object} InternalFlightRecorder
+ * @property {Error} [error] An errored that occurred
+ * @property {DBDriver.Connection} [conn] A connection that will be `released` when an error exists
  */
