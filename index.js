@@ -168,15 +168,12 @@ class MDBDialect {
         execMeta = createExecMeta(dlt, sql, opts);
       }
 
-      if (!txo && !opts.prepareStatement && opts.type === 'READ') {
-        if (opts.stream >= 0) {
-          rslts = [ await createReadStream(dlt, execMeta, opts, txo) ];
-        } else { // pool.query will auto-release the connection
-          rslts = await dlt.at.pool.query(execMeta.sql, execMeta.binds);
-        }
+      if (!txo && !opts.prepareStatement && opts.stream < 0 && opts.type === 'READ') {
+        // pool.query will auto-release the connection
+        rslts = await dlt.at.pool.query(execMeta.sql, execMeta.binds);
       } else {
         if (opts.stream >= 0) {
-          rslts = [ createWriteStream(dlt, sql, opts, txo) ];
+          rslts = [ opts.type === 'READ' ? await createReadStream(dlt, execMeta, opts, txo) : createWriteStream(dlt, sql, opts, txo) ];
         } else if (opts.prepareStatement) {
           rslts = await pso.exec(opts.binds);
         } else {
@@ -200,7 +197,7 @@ class MDBDialect {
       rtn.raw = rslts;
       return rtn;
     } catch (err) {
-      recorder = errored(`Failed to execute the following SQL:\n${sql}`, dlt, meta, err);
+      recorder = errored(`sqler-mdb: Failed to execute the following SQL:\n${sql}`, dlt, meta, err);
       throw err;
     } finally {
       if (conn) {
@@ -490,17 +487,22 @@ function statusLabel(dlt) {
  * Creates a read stream that batches the read SQL executions
  * @private
  * @param {MDBInternal} dlt The internal MariaDB/MySQL object instance
- * @param {InternalExecMeta} execMeta The metadata that contains the SQL to execute and the binds parameters to use
+ * @param {InternalExecMeta} [execMeta] The metadata that contains the SQL to execute and the binds parameters to use. Ignored when using a prepared statement.
  * @param {MDBExecOptions} opts The execution options
  * @param {MDBTransactionObject} [txo] The transaction object to use. When not specified, a connection will be established on the first write to the stream.
  * @returns {Stream.Readable} The created read stream
  */
 async function createReadStream(dlt, execMeta, opts, txo) {
   const conn = txo ? txo.conn : await dlt.at.pool.getConnection();
-  const readable = conn.queryStream(execMeta.sql, execMeta.binds);
-  readable.on('end', async () => {
-    await operation(dlt, 'release', false, conn, opts)();
-  });
+  if (opts.prepareStatement) {
+    //
+  }
+  const readable = dlt.at.track.readable(opts, conn.queryStream(execMeta.sql, execMeta.binds));
+  if (!txo && !opts.prepareStatement) {
+    readable.on('close', async () => {
+      await operation(dlt, 'release', false, conn, opts)();
+    });
+  }
   return readable;
 }
 
@@ -518,13 +520,16 @@ function createWriteStream(dlt, sql, opts, meta, txo) {
   /** @type {DBDriver.Connection} */
   let conn;
   const writable = dlt.at.track.writable(opts, async (batch) => {
+    /** @type {InternalFlightRecorder} */
+    let recorder;
     try {
+      let rslts;
       /** @type {InternalPreparedStatement} */
       let pso;
       if (!conn) {
         if (opts.prepareStatement) {
           if (!dlt.at.stmts.has(meta.name)) {
-            throw new Error(`Prepared statement not found for "${meta.name}" during writable stream batch`);
+            throw new Error(`sqler-mdb: Prepared statement not found for "${meta.name}" during writable stream batch`);
           }
           pso = dlt.at.stmts.get(meta.name);
         } else {
@@ -534,12 +539,14 @@ function createWriteStream(dlt, sql, opts, meta, txo) {
       let bi = 0;
       if (opts.prepareStatement) {
         // prepared statements will not go through conn.batch, but rather the prepared statement exec protocol
-        const rslts = new Array(batch.length);
+        rslts = new Array(batch.length);
         for (let binds of batch) {
           rslts[bi] = await pso.exec(binds);
           bi++;
         }
-        return rslts;
+        if (dlt.at.logger) {
+          dlt.at.logger(`sqler-mdb: Completed execution of prepared statement "${pso.name}"${dlt.at.debug ? ' on SQL ${}' : ''}`)
+        }
       } else {
         // batch all the binds into a single exectuion for a performance gain
         // https://mariadb.com/kb/en/connector-nodejs-promise-api/#connectionbatchsql-values-promise
@@ -551,14 +558,20 @@ function createWriteStream(dlt, sql, opts, meta, txo) {
           bindsArray[bi] = execMeta.binds;
           bi++;
         }
-        return await conn.batch(execMeta.sql, bindsArray);
+        rslts = await conn.batch(execMeta.sql, bindsArray);
       }
+      return rslts;
     } catch (err) {
-
+      recorder = errored(`sqler-mdb: Failed to execute writable stream for the following SQL:\n${sql}`, dlt, meta, err);
+      throw err;
+    } finally {
+      if (!txo && conn) {
+        await finalize(recorder, dlt, operation(dlt, 'release', false, conn, opts));
+      }
     }
   });
   if (!txo && !opts.prepareStatement) {
-    writable.on('end', async () => {
+    writable.on('close' /* 'finish' */, async () => {
       if (!conn) return;
       await operation(dlt, 'release', false, conn, opts)();
     });
@@ -701,6 +714,9 @@ let internal = function(dialect) {
  * @property {MDBExecOptions} at.opts The __global__ execution options
  * @property {Object} at.pool The connection pool
  * @property {typedefs.SQLERState} at.state The __global__ dialect state
+ * @property {Function} [at.errorLogger] A function that takes one or more arguments and logs the results as an error (similar to `console.error`)
+ * @property {Function} [at.logger] A function that takes one or more arguments and logs the results (similar to `console.log`)
+ * @property {Boolean} [at.debug] A flag that indicates the dialect should be run in debug mode (if supported)
  * @private
  */
 

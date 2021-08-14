@@ -232,7 +232,7 @@ function nameAll(label, table1BindsArray, table2BindsArray) {
       barr = table2BindsArray;
     }
     // update with expanded name
-    barr[ri][`name${ti ? ti + 1 : ''}`] = `TABLE: ${ti + 1}, ROW: ${ri + 1}, UPDATE: "${label} ${i + 1}"`;
+    barr[ri][`name${ti ? ti + 1 : ''}`] = `TABLE: ${ti + 1}, ROW: ${ri + 1}, UPDATE_STREAM: "${label} ${i + 1}"`;
   }
   return [ 'name', 'name2' ];
 }
