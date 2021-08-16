@@ -1,5 +1,6 @@
 'use strict';
 
+const typedefs = require('sqler/typedefs');
 const Os = require('os');
 const Fs = require('fs');
 const Stream = require('stream');
@@ -14,7 +15,7 @@ module.exports = async function runExample(manager, connName) {
 
   // read from multiple tables
   const rslt = await manager.db[connName].read.table.rows({
-    stream: 1, // indicate reads will be streamed (batch sizes
+    stream: 1, // indicate reads will be streamed
     binds: { name: 'stream' }
   });
 

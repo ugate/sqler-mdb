@@ -2,6 +2,7 @@
 
 const DBDriver = require('mariadb');
 const Stream = require('stream');
+const EventEmitter = require('events');
 const typedefs = require('sqler/typedefs');
 
 const MAX_MDB_NAME_LGTH = 64;
@@ -162,9 +163,7 @@ class MDBDialect {
       /** @type {typedefs.SQLERExecResults} */
       const rtn = {};
 
-      if (opts.prepareStatement) {
-        pso = await prepared(dlt, sql, opts, meta, txo, rtn);
-      } else {
+      if (!opts.prepareStatement) {
         execMeta = createExecMeta(dlt, sql, opts);
       }
 
@@ -172,9 +171,10 @@ class MDBDialect {
         // pool.query will auto-release the connection
         rslts = await dlt.at.pool.query(execMeta.sql, execMeta.binds);
       } else {
-        if (opts.stream >= 0) {
-          rslts = [ opts.type === 'READ' ? await createReadStream(dlt, execMeta, opts, txo) : createWriteStream(dlt, sql, opts, txo) ];
+        if (opts.stream >= 0) { // streams handle prepared statements when streaming starts
+          rslts = [ opts.type === 'READ' ? await createReadStream(dlt, execMeta, opts, txo, rtn) : createWriteStream(dlt, sql, opts, meta, txo, rtn) ];
         } else if (opts.prepareStatement) {
+          pso = await prepared(dlt, sql, opts, meta, txo, rtn);
           rslts = await pso.exec(opts.binds);
         } else {
           conn = txo ? null : await dlt.at.pool.getConnection();
@@ -220,6 +220,9 @@ class MDBDialect {
         await dlt.at.pool.end();
         dlt.at.transactions.clear();
         dlt.at.stmts.clear();
+      }
+      if (dlt.at.logger) {
+        dlt.at.logger(`sqler-mdb: Closed connection pool "${dlt.at.opts.id}" (${statusLabel(dlt)})`);
       }
       return dlt.at.state.pending;
     } catch (err) {
@@ -326,12 +329,15 @@ function operation(dlt, name, reset, txoOrConn, opts, preop) {
         if (txo) dlt.at.transactions.delete(txo.tx.id);
         dlt.at.state.pending = 0;
       }
+      if (dlt.at.logger) {
+        dlt.at.logger(`sqler-mdb: Performed ${name} on connection pool "${dlt.at.opts.id}" (${statusLabel(dlt)})`);
+      }
     } catch (err) {
       recorder = errored(`sqler-mdb: Failed to ${name} ${dlt.at.state.pending} transaction(s) with options: ${
         opts ? JSON.stringify(opts) : 'N/A'}`, dlt, null, err);
       throw err;
     } finally {
-      if (!txo && conn && name !== 'end' && name !== 'release') {
+      if ((!txo || (name === 'commit' || name === 'rollback')) && conn && name !== 'end' && name !== 'release') {
         await finalize(recorder, dlt, () => Promise.resolve(conn.release()));
       }
     }
@@ -359,38 +365,47 @@ async function prepared(dlt, sql, opts, meta, txo, rtn) {
     pso = dlt.at.stmts.get(meta.name);
   } else {
     isPrepare = true;
-    pso = { name: meta.name, sql };
+    pso = new EventEmitter();
+    pso.unprepare = async () => {
+      const hasTX = opts.transactionId && dlt.at.transactions.has(opts.transactionId);
+      if (dlt.at.stmts.has(meta.name)) {
+        const pso = dlt.at.stmts.get(meta.name);
+        try {
+          await pso.conn.query(`DEALLOCATE PREPARE ${pso.name}`);
+          dlt.at.stmts.delete(meta.name);
+          // need to drop separately since drop procedure cannot be done from within a procedure
+          await pso.conn.query(`DROP PROCEDURE ${pso.procedure}`);
+        } finally {
+          if (!hasTX) {
+            await pso.conn.release();
+            if (opts.stream >= 0) pso.emit(typedefs.EVENT_STREAM_RELEASE);
+          }
+        }
+      }
+    };
+    pso.name = meta.name;
+    pso.sql = sql;
     // set before async in case concurrent PS invocations
     dlt.at.stmts.set(pso.name, pso);
     pso.connProm = txo ? Promise.resolve(txo.conn) : dlt.at.pool.getConnection();  // other PS exec need access to promise in order to wait for connection access
     pso.conn = await pso.connProm; // wait for the initial PS to establish a connection (other PS exec need access to promise)
     pso.connProm = null; // reset promise once it completes
   }
-  rtn.unprepare = async () => {
-    const hasTX = opts.transactionId && dlt.at.transactions.has(opts.transactionId);
-    if (dlt.at.stmts.has(meta.name)) {
-      const pso = dlt.at.stmts.get(meta.name);
-      try {
-        await pso.conn.query(`DEALLOCATE PREPARE ${pso.name}`);
-        dlt.at.stmts.delete(meta.name);
-        // need to drop separately since drop procedure cannot be done from within a procedure
-        await pso.conn.query(`DROP PROCEDURE ${pso.procedure}`);
-      } finally {
-        if (!hasTX) await pso.conn.release();
-      }
-    } else if (!hasTX) await conn.release();
-  };
+  rtn.unprepare = pso.unprepare;
   if (isPrepare) {
     pso.name = meta.name;
     pso.shortName = pso.name.length > MAX_MDB_NAME_LGTH ? `sqler_mdb_prep_stmt${Math.floor(Math.random() * 10000)}` : pso.name;
-    pso.exec = async (binds) => {
+    pso.exec = async (binds, size) => {
+      if (!dlt.at.stmts.has(meta.name)) {
+        throw new Error(`sqler-mdb: Prepared statement not found for "${meta.name}" during writable stream batch`);
+      }
+      /** @type {InternalPreparedStatement} */
+      const pso = dlt.at.stmts.get(meta.name);
+      /** @type {InternalExecMeta} */
+      let execMeta;
       /** @type {InternalFlightRecorder} */
       let recorder;
-      /** @type {InternalPreparedStatement} */
-      pso = dlt.at.stmts.get(meta.name);
       try {
-        /** @type {InternalExecMeta} */
-        let execMeta;
         if (!pso.execMeta) {
           pso.execMeta = createExecMeta(dlt, sql, opts, binds);
           pso.procedure = `\`${pso.execMeta.dopts.preparedStatementDatabase}\`.\`${pso.shortName}\``;
@@ -408,13 +423,37 @@ async function prepared(dlt, sql, opts, meta, txo, rtn) {
           if (pso.procProm) await pso.procProm; // wait for the initial PS stored proc to be created
           if (pso.prepareExecProm) await pso.prepareExecProm; // wait for the initial PS to be prepared
         }
-        return preparedStmtProcExec(pso, pso.conn, execMeta.bndp);
+        if (size !== undefined && (!execMeta.bndp || !execMeta.bndp.hasOwnProperty('size'))) {
+          console.warn(`sqler-mdb: Unable to find bind property "size" to restrict results to an expected size of "${size}" for prepared statement "${
+            pso.name}" on SQL:\n${sql}`);
+        }
+        const rslts = await preparedStmtProcExec(pso, pso.conn, execMeta.bndp);
+        if (dlt.at.logger) {
+          dlt.at.logger(`sqler-mdb: Completed execution of prepared statement "${pso.name}"${dlt.at.debug ? ` for binds ${
+            Object.keys(execMeta.bndp)} on SQL\n${execMeta.sql}` : ''}`);
+        }
+        return rslts;
       } catch (err) {
-        recorder = errored(`sqler-mdb: Failed to execute prepared statement:\n${sql}`, dlt, meta, err);
+        recorder = errored(`sqler-mdb: Failed to execute prepared statement with binds ${execMeta ? Object.keys(execMeta.bndp) : 'N/A'} on SQL:\n${
+          sql}`, dlt, meta, err);
         throw err;
       } finally {
         await finalize(recorder, dlt);
       }
+    };
+    pso.batch = async (batch) => {
+      /** @type {InternalPreparedStatement} */
+      const pso = dlt.at.stmts.get(meta.name);
+      const rslts = new Array(batch.length);
+      let bi = 0;
+      for (let binds of batch) {
+        rslts[bi] = await pso.exec(binds);
+        bi++;
+      }
+      if (dlt.at.logger) {
+        dlt.at.logger(`sqler-mdb: Completed execution of ${batch.length} batched prepared statement(s) for "${pso.name}"`);
+      }
+      return rslts;
     };
   } else {
     pso = dlt.at.stmts.get(meta.name);
@@ -490,18 +529,52 @@ function statusLabel(dlt) {
  * @param {InternalExecMeta} [execMeta] The metadata that contains the SQL to execute and the binds parameters to use. Ignored when using a prepared statement.
  * @param {MDBExecOptions} opts The execution options
  * @param {MDBTransactionObject} [txo] The transaction object to use. When not specified, a connection will be established on the first write to the stream.
+ * @param {typedefs.SQLERExecResults} rtn Where the _public_ prepared statement functions will be set (ignored when the read stream is not for a prepared
+ * statement).
  * @returns {Stream.Readable} The created read stream
  */
-async function createReadStream(dlt, execMeta, opts, txo) {
-  const conn = txo ? txo.conn : await dlt.at.pool.getConnection();
+async function createReadStream(dlt, execMeta, opts, txo, rtn) {
+  /** @type {Stream.Readable} */
+  let readable;
   if (opts.prepareStatement) {
-    //
-  }
-  const readable = dlt.at.track.readable(opts, conn.queryStream(execMeta.sql, execMeta.binds));
-  if (!txo && !opts.prepareStatement) {
-    readable.on('close', async () => {
-      await operation(dlt, 'release', false, conn, opts)();
+    /** @type {InternalFlightRecorder[]} */
+    const recorders = [];
+    readable = new Stream.Readable({
+      objectMode: true,
+      read: async (size) => {
+        const recordCount = size || opts.stream;
+        /** @type {InternalPreparedStatement} */
+        let pso;
+        try {
+          if (!dlt.at.stmts.has(meta.name)) {
+            pso = await prepared(dlt, sql, opts, meta, txo, rtn);
+            // ensure that the PS connection release is emitted on the readable
+            pso.on(typedefs.EVENT_STREAM_RELEASE, () => readable.emit(typedefs.EVENT_STREAM_RELEASE));
+          } else {
+            pso = dlt.at.stmts.get(meta.name);
+          }
+          const rslts = await pso.exec(null, recordCount);
+          if (Array.isArray(rslts)) this.push(...rslts);
+          else this.push(rslts);
+        } catch (err) {
+          recorders.push(errored(`sqler-mdb: Failed to execute readable stream for ${recordCount} records`, dlt, meta, err));
+          throw err;
+        }
+      }
     });
+    dlt.at.track.readable(opts, readable);
+  } else {
+    /** @type {DBDriver.Connection} */
+    const conn = txo ? txo.conn : await dlt.at.pool.getConnection();
+    readable = conn.queryStream(execMeta.sql, execMeta.binds);
+    dlt.at.track.readable(opts, readable);
+    if (!txo) {
+      readable.on('close', async () => {
+        if (!conn) return;
+        await operation(dlt, 'release', false, conn, opts)();
+        readable.emit(typedefs.EVENT_STREAM_RELEASE);
+      });
+    }
   }
   return readable;
 }
@@ -514,66 +587,57 @@ async function createReadStream(dlt, execMeta, opts, txo) {
  * @param {MDBExecOptions} opts The execution options
  * @param {typedefs.SQLERExecMeta} meta The SQL execution metadata
  * @param {MDBTransactionObject} [txo] The transaction object to use. When not specified, a connection will be established on the first write to the stream.
+ * @param {typedefs.SQLERExecResults} rtn Where the _public_ prepared statement functions will be set (ignored when the write stream is not for a prepared
+ * statement).
  * @returns {Stream.Writable} The created write stream
  */
-function createWriteStream(dlt, sql, opts, meta, txo) {
+function createWriteStream(dlt, sql, opts, meta, txo, rtn) {
   /** @type {DBDriver.Connection} */
   let conn;
+  /** @type {InternalFlightRecorder[]} */
+  const recorders = [];
   const writable = dlt.at.track.writable(opts, async (batch) => {
-    /** @type {InternalFlightRecorder} */
-    let recorder;
+    /** @type {InternalPreparedStatement} */
+    let pso;
     try {
-      let rslts;
-      /** @type {InternalPreparedStatement} */
-      let pso;
-      if (!conn) {
-        if (opts.prepareStatement) {
-          if (!dlt.at.stmts.has(meta.name)) {
-            throw new Error(`sqler-mdb: Prepared statement not found for "${meta.name}" during writable stream batch`);
-          }
-          pso = dlt.at.stmts.get(meta.name);
-        } else {
-          conn = txo ? txo.conn : await dlt.at.pool.getConnection();
-        }
-      }
-      let bi = 0;
       if (opts.prepareStatement) {
-        // prepared statements will not go through conn.batch, but rather the prepared statement exec protocol
-        rslts = new Array(batch.length);
-        for (let binds of batch) {
-          rslts[bi] = await pso.exec(binds);
-          bi++;
+        if (!dlt.at.stmts.has(meta.name)) {
+          pso = await prepared(dlt, sql, opts, meta, txo, rtn);
+          // ensure that the PS connection release is emitted on the writable
+          pso.on(typedefs.EVENT_STREAM_RELEASE, () => writable.emit(typedefs.EVENT_STREAM_RELEASE));
+        } else {
+          pso = dlt.at.stmts.get(meta.name);
         }
-        if (dlt.at.logger) {
-          dlt.at.logger(`sqler-mdb: Completed execution of prepared statement "${pso.name}"${dlt.at.debug ? ' on SQL ${}' : ''}`)
-        }
-      } else {
-        // batch all the binds into a single exectuion for a performance gain
-        // https://mariadb.com/kb/en/connector-nodejs-promise-api/#connectionbatchsql-values-promise
-        /** @type {InternalExecMeta} */
-        let execMeta;
-        const bindsArray = new Array(batch.length);
-        for (let binds of batch) {
-          execMeta = createExecMeta(dlt, sql, opts, binds);
-          bindsArray[bi] = execMeta.binds;
-          bi++;
-        }
-        rslts = await conn.batch(execMeta.sql, bindsArray);
+        return await pso.batch(batch);
+      }
+      conn = conn || (txo ? txo.conn : await dlt.at.pool.getConnection());
+      // batch all the binds into a single exectuion for a performance gain
+      // https://mariadb.com/kb/en/connector-nodejs-promise-api/#connectionbatchsql-values-promise
+      /** @type {InternalExecMeta} */
+      let execMeta;
+      let bi = 0;
+      const bindsArray = new Array(batch.length);
+      for (let binds of batch) {
+        execMeta = createExecMeta(dlt, sql, opts, binds);
+        bindsArray[bi] = execMeta.binds;
+        bi++;
+      }
+      const rslts = await conn.batch(execMeta.sql, bindsArray);
+      if (dlt.at.logger) {
+        dlt.at.logger(`sqler-mdb: Completed execution of ${batch.length} batched write streams`);
       }
       return rslts;
     } catch (err) {
-      recorder = errored(`sqler-mdb: Failed to execute writable stream for the following SQL:\n${sql}`, dlt, meta, err);
+      recorders.push(errored(`sqler-mdb: Failed to execute writable stream batch for ${
+        batch ? batch.length : 'invalid batch'} on the following SQL:\n${sql}`, dlt, meta, err));
       throw err;
-    } finally {
-      if (!txo && conn) {
-        await finalize(recorder, dlt, operation(dlt, 'release', false, conn, opts));
-      }
     }
   });
   if (!txo && !opts.prepareStatement) {
     writable.on('close' /* 'finish' */, async () => {
       if (!conn) return;
       await operation(dlt, 'release', false, conn, opts)();
+      writable.emit(typedefs.EVENT_STREAM_RELEASE);
     });
   }
   return writable;
@@ -736,13 +800,23 @@ let internal = function(dialect) {
  * @callback InternalPreparedStatementExec
  * @param {Object} [binds] An object that contains the bind parameters as property names and property values as the bound values (omit to use the original binds
  * from {@link typedefs.SQLERExecOptions}).
+ * @param {Number} [size] The number of returned records limit that the prepared statement should be limited to in the results (will result in warnings when there
+ * it not a `size` bind parameter on the PS SQL).
  * @returns {Object} The prepared statement execution results
  * @async
  */
 
 /**
+ * Executes a batched prepared statement.
+ * @callback InternalPreparedStatementBatch
+ * @param {Object[]} [binds] An array that contains objects that is assigned the bind parameters as property names and property values as the bound values.
+ * @returns {Object[]} An array of prepared statement execution results
+ * @async
+ */
+
+/**
  * Prepared statement
- * @typedef {Object} InternalPreparedStatement
+ * @typedef {Object} InternalPreparedStatementType
  * @property {String} name The prepared statement name
  * @property {String} shortName The short name
  * @property {String} procedure The procedure name that the prepared statement will be stored as
@@ -755,7 +829,10 @@ let internal = function(dialect) {
  * @property {Promise} [prepareExecProm] The promise for the initial PS stored proc to be created/executed
  * @property {Promise<DBDriver.Connection>} [connProm] The promise for the PS connection
  * @property {DBDriver.Connection} [conn] The PS connection
- * @property {InternalPreparedStatementExec} exec The `async function()` that executes the prepared statement SQL and returns the results
+ * @property {InternalPreparedStatementExec} exec The function that executes the prepared statement SQL and returns the results
+ * @property {InternalPreparedStatementBatch} batch The function that executes a batch of prepared statement SQL and returns the results
+ * @property {Function} unprepare A no-argument _async_ function that unprepares the outstanding prepared statement
+ * @typedef {EventEmitter & InternalPreparedStatementType} InternalPreparedStatement
  * @private
  */
 

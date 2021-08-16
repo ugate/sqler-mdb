@@ -43,7 +43,7 @@
     "minami": "^1.2.3",
     "moment-db": "^2.0.0",
     "read-chunk": "^3.2.0",
-    "sqler": "^8.0.0"
+    "sqler": "^8.1.0"
   },
   "files": [
     "/index.js",

@@ -392,6 +392,7 @@ async function crud(type, count = 0) {
   const isStream = type === 'stream';
   const streamClassRead = isStream ? Stream.Readable : null;
   const streamClassWrite = isStream ? Stream.Writable : null;
+  const updateNameIncl = isStream ? 'Prepared statement with txId' : 'UPDATE';
   const typd = type ? `.${type}` : '';
   let rslti = -1, state = {};
 
@@ -408,7 +409,7 @@ async function crud(type, count = 0) {
   crudly(state, { label: `update${typd}`, streamClass: streamClassWrite, count }, rslts[rslti]);
 
   rslts[++rslti] = await read(test.mgr, test.vendor);
-  crudly(state, { label: `update read${typd}`, streamClass: streamClassRead, nameIncl: 'UPDATE', count }, rslts[rslti]);
+  crudly(state, { label: `update read${typd}`, streamClass: streamClassRead, nameIncl: updateNameIncl, count }, rslts[rslti]);
 
   // extra update to test procedure
   /** @type {typedefs.SQLERExecOptions} */
@@ -494,6 +495,7 @@ function crudly(state, expectOpts, rslt) {
     expect(rows, `CRUD ${expectOpts.label} jsonFile rows.length`).length(expectOpts.count);
     for (let row of rslt.rows) {
       expect(row, `CRUD ${expectOpts.label} class`).instanceOf(expectOpts.streamClass);
+      // row.on(typedefs.EVENT_STREAM_RELEASE, () => expect('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@2'));
     }
   } else {
     rows = rslt.rows;
