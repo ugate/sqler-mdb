@@ -392,7 +392,7 @@ async function crud(type, count = 0) {
   const isStream = type === 'stream';
   const streamClassRead = isStream ? Stream.Readable : null;
   const streamClassWrite = isStream ? Stream.Writable : null;
-  const updateNameIncl = isStream ? 'Prepared statement with txId' : 'UPDATE';
+  const updateNameIncl = isStream ? 'Prepared statement with txId' : 'UPDATE_PS';
   const typd = type ? `.${type}` : '';
   let rslti = -1, state = {};
 

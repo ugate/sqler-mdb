@@ -103,7 +103,7 @@ async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray)
   try {
     for (let i = 0; i < table1BindsArray.length; i++) {
       // update with expanded name
-      table1BindsArray[i].name = `TABLE: 1, ROW: ${i + 1}, UPDATE: "PS ${i + 1}"`;
+      table1BindsArray[i].name = `TABLE: 1, ROW: ${i + 1}, UPDATE_PS: "PS ${i + 1}"`;
       // Using an implicit transcation (autoCommit defaults to true):
       rtn.psRslts[i] = manager.db[connName].update.table1.rows({
         name: table1BindsArray[i].name, // name is optional
@@ -148,7 +148,7 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
 
     for (let i = 0; i < table1BindsArray.length; i++) {
       // update with expanded name
-      table1BindsArray[i].name = `TABLE: 1, ROW: ${i + 1}, UPDATE: "PS with txId ${tx.id}"`;
+      table1BindsArray[i].name = `TABLE: 1, ROW: ${i + 1}, UPDATE_PS: "PS with txId ${tx.id}"`;
       rtn.txExpPsRslts[i] = manager.db[connName].update.table1.rows({
         name: table1BindsArray[i].name, // name is optional
         autoCommit: false, // don't auto-commit after execution
