@@ -1,5 +1,7 @@
 'use strict';
 
+const typedefs = require('sqler/typedefs');
+
 // export just to illustrate module usage
 module.exports = async function runExample(manager, connName) {
 
@@ -30,10 +32,10 @@ module.exports = async function runExample(manager, connName) {
   await explicitTransactionUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray);
 
   // Using a prepared statement:
-  await preparedStatementUpdate(manager, connName, rtn, table1BindsArray);
+  await preparedStatementUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray);
 
   // Using a prepared statement within an explicit transaction
-  await preparedStatementExplicitTxUpdate(manager, connName, rtn, table1BindsArray);
+  await preparedStatementExplicitTxUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray);
 
   return rtn;
 };
@@ -63,7 +65,7 @@ async function implicitTransactionUpdate(manager, connName, rtn, table1BindsArra
 async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
   // don't exceed connection pool count
   rtn.txExpRslts = new Array(table1BindsArray.length + table2BindsArray.length);
-
+  /** @type {typedefs.SQLERTransaction} */
   let tx;
   try {
     // start a transaction
@@ -98,15 +100,18 @@ async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArra
   }
 }
 
-async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray) {
-  rtn.psRslts = new Array(table1BindsArray.length); // don't exceed connection pool count
+async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
+  // don't exceed connection pool count
+  rtn.psRslts = new Array(table1BindsArray.length + table2BindsArray.length);
+  let tbl2Idx;
   try {
-    for (let i = 0; i < table1BindsArray.length; i++) {
-      // update with expanded name
-      table1BindsArray[i].name = `TABLE: 1, ROW: ${i + 1}, UPDATE_PS: "PS ${i + 1}"`;
-      // Using an implicit transcation (autoCommit defaults to true):
-      rtn.psRslts[i] = manager.db[connName].update.table1.rows({
-        name: table1BindsArray[i].name, // name is optional
+
+    // simple iterator over all the binds
+    forEach('UPDATE_PS', 'Prepred statement', table1BindsArray, table2BindsArray, (idx, ti, ri, binds, nameProp) => {
+
+      // Example execution in parallel (same transacion)
+      rtn.psRslts[idx] = manager.db[connName].update[`table${ti + 1}`].rows({
+        name: binds[nameProp], // execution name is optional
         // flag the SQL execution as a prepared statement
         // this will cause the statement to be prepared
         // and a dedicated connection to be allocated from
@@ -120,37 +125,47 @@ async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray)
           preparedStatementDatabase: 'sqlermysql'
         },
         // include the bind parameters
-        binds: table1BindsArray[i]
+        binds
       });
-    }
+
+      // just so we can ref result for unprepare on 2nd table
+      if (ti && !tbl2Idx) tbl2Idx = ti;
+
+    });
+
     // wait for parallel executions to complete
-    for (let i = 0; i < table1BindsArray.length; i++) {
+    for (let i = 0; i < rtn.psRslts.length; i++) {
       rtn.psRslts[i] = await rtn.psRslts[i];
     }
   } finally {
-    // could call unprepare using any of the returned execution results
-    if (rtn.psRslts[0] && rtn.psRslts[0].unprepare) {
-      // since prepareStatement = true, we need to close the statement
-      // and release the statement connection back to the pool
-      // (also drops the temporary stored procedure that executes the
-      // prepared statement)
-      await rtn.psRslts[0].unprepare();
+    // could call unprepare using any of the returned execution results (for each table)
+    for (let idx of [ 0, tbl2Idx /* 1st index for table 1 and 2 */ ]) {
+      if (rtn.psRslts[idx] && rtn.psRslts[idx].unprepare) {
+        // since prepareStatement = true, we need to close the statement
+        // and release the statement connection back to the pool
+        // (also drops the temporary stored procedure that executes the
+        // prepared statement)
+        await rtn.psRslts[idx].unprepare();
+      }
     }
   }
 }
 
-async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1BindsArray) {
-  rtn.txExpPsRslts = new Array(table1BindsArray.length); // don't exceed connection pool count
+async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
+  // don't exceed connection pool count
+  rtn.txExpPsRslts = new Array(table1BindsArray.length + table2BindsArray.length);
+  /** @type {typedefs.SQLERTransaction} */
   let tx;
   try {
     // start a transaction
     tx = await manager.db[connName].beginTransaction();
 
-    for (let i = 0; i < table1BindsArray.length; i++) {
-      // update with expanded name
-      table1BindsArray[i].name = `TABLE: 1, ROW: ${i + 1}, UPDATE_PS_TX: "PS with txId ${tx.id}"`;
-      rtn.txExpPsRslts[i] = manager.db[connName].update.table1.rows({
-        name: table1BindsArray[i].name, // name is optional
+    // simple iterator over all the binds
+    forEach('UPDATE_PS_TX', `Prepred statement with txId ${tx.id}`, table1BindsArray, table2BindsArray, (idx, ti, ri, binds, nameProp) => {
+
+      // Example execution in parallel (same transacion)
+      rtn.txExpPsRslts[idx] = manager.db[connName].update[`table${ti + 1}`].rows({
+        name: binds[nameProp], // execution name is optional
         autoCommit: false, // don't auto-commit after execution
         transactionId: tx.id, // ensure execution takes place within transaction
         prepareStatement: true, // ensure a prepared statement is used
@@ -162,11 +177,13 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
           preparedStatementDatabase: 'sqlermysql'
         },
         // include the bind parameters
-        binds: table1BindsArray[i]
+        binds
       });
-    }
+
+    });
+
     // wait for parallel executions to complete
-    for (let i = 0; i < table1BindsArray.length; i++) {
+    for (let i = 0; i < rtn.txExpPsRslts.length; i++) {
       rtn.txExpPsRslts[i] = await rtn.txExpPsRslts[i];
     }
 

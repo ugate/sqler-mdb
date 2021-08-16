@@ -44,10 +44,10 @@ module.exports = async function runExample(manager, connName) {
   await explicitTransactionUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray);
 
   // Using a prepared statement:
-  await preparedStatementUpdate(manager, connName, rtn, table1BindsArray);
+  await preparedStatementUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray);
 
   // Using a prepared statement within an explicit transaction
-  await preparedStatementExplicitTxUpdate(manager, connName, rtn, table1BindsArray);
+  await preparedStatementExplicitTxUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray);
 
   return rtn;
 };
@@ -134,43 +134,51 @@ async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArra
   }
 }
 
-async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray) {
+async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
   try {
     // simply rename all the bind names to reflect the action being performed
-    nameAll('UPDATE_STREAM_PS', 'Prepared statement', table1BindsArray);
+    nameAll('UPDATE_STREAM_PS', 'Prepared statement', table1BindsArray, table2BindsArray);
 
-    // Example using an implicit transaction for each streamed (autoCommit = true is the default)
-    rtn.psRslts = await manager.db[connName].update.table1.rows({
-      // flag the SQL execution as a prepared statement
-      // this will cause the statement to be prepared
-      // and a dedicated connection to be allocated from
-      // the pool just before the first SQL executes
-      prepareStatement: true,
-      driverOptions: {
-        // prepared statements in MySQL/MariaDB use a temporary
-        // stored procedure to execute prepared statements...
-        // in order to do so, the stored procedure needs to have
-        // a database scope defined where it will reside
-        preparedStatementDatabase: 'sqlermysql'
-      },
-      // update binds will be batched in groups of 1 before streaming them to the database since
-      // execOpts.stream = 1, but we could have batched them in groups (stream = 2) as well
-      // https://mariadb.com/kb/en/connector-nodejs-promise-api/#connectionbatchsql-values-promise
-      stream: 1
-      // no need to set execOpts.binds since they will be streamed from the update instead
-    });
-    
-    // now that the write streams are ready and the read binds have been renamed,
-    // we can cycle through the bind arrays and write them to the appropriate tables
-    for (let writeStream of rtn.psRslts.rows) {
-      await pipeline(
-        // here we're just using some static values for illustration purposes, but they can come from a
-        // any readable stream source like a file, database, etc. as long as they are "transformed"
-        // into JSON binds before the sqler writable stream receives them
-        Stream.Readable.from(table1BindsArray),
-        writeStream
-      );
+    let ni = 0;
+    const bindsArrays = [ table1BindsArray, table2BindsArray ];
+    // don't exceed connection pool count
+    rtn.psRslts = new Array(bindsArrays.length);
+    for (let bindsArray of bindsArrays) {
+      // Example using an implicit transaction for each streamed (autoCommit = true is the default)
+      rtn.psRslts[ni] = await manager.db[connName].update[`table${ni + 1}`].rows({
+        // flag the SQL execution as a prepared statement
+        // this will cause the statement to be prepared
+        // and a dedicated connection to be allocated from
+        // the pool just before the first SQL executes
+        prepareStatement: true,
+        driverOptions: {
+          // prepared statements in MySQL/MariaDB use a temporary
+          // stored procedure to execute prepared statements...
+          // in order to do so, the stored procedure needs to have
+          // a database scope defined where it will reside
+          preparedStatementDatabase: 'sqlermysql'
+        },
+        // update binds will be batched in groups of 1 before streaming them to the database since
+        // execOpts.stream = 1, but we could have batched them in groups (stream = 2) as well
+        // https://mariadb.com/kb/en/connector-nodejs-promise-api/#connectionbatchsql-values-promise
+        stream: 1
+        // no need to set execOpts.binds since they will be streamed from the update instead
+      });
+
+      // now that the write streams are ready and the read binds have been renamed,
+      // we can cycle through the bind arrays and write them to the appropriate tables
+      for (let writeStream of rtn.psRslts[ni].rows) {
+        await pipeline(
+          // here we're just using some static values for illustration purposes, but they can come from a
+          // any readable stream source like a file, database, etc. as long as they are "transformed"
+          // into JSON binds before the sqler writable stream receives them
+          Stream.Readable.from(bindsArray),
+          writeStream
+        );
+      }
+      ni++;
     }
+    
   } finally {
     // could call unprepare using any of the returned execution results
     if (rtn.psRslts && rtn.psRslts.unprepare) {
@@ -184,7 +192,7 @@ async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray)
   }
 }
 
-async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1BindsArray) {
+async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
   /** @type {typedefs.SQLERTransaction} */
   let tx;
   try {
@@ -192,37 +200,44 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
     tx = await manager.db[connName].beginTransaction();
 
     // simply rename all the bind names to reflect the action being performed
-    nameAll('UPDATE_STREAM_PS_TX', `Prepared statement with txId ${tx.id}`, table1BindsArray);
+    nameAll('UPDATE_STREAM_PS_TX', `Prepared statement with txId ${tx.id}`, table1BindsArray, table2BindsArray);
 
-    // Example using an implicit transaction for each streamed (autoCommit = true is the default)
-    rtn.txExpPsRslts = await manager.db[connName].update.table1.rows({
-      autoCommit: false, // don't auto-commit after execution
-      transactionId: tx.id, // ensure execution takes place within transaction
-      prepareStatement: true, // ensure a prepared statement is used
-      driverOptions: {
-        // prepared statements in MySQL/MariaDB use a temporary
-        // stored procedure to execute prepared statements...
-        // in order to do so, the stored procedure needs to have
-        // a database scope defined where it will reside
-        preparedStatementDatabase: 'sqlermysql'
-      },
-      // update binds will be batched in groups of 1 before streaming them to the database since
-      // execOpts.stream = 1, but we could have batched them in groups (stream = 2) as well
-      // https://mariadb.com/kb/en/connector-nodejs-promise-api/#connectionbatchsql-values-promise
-      stream: 1
-      // no need to set execOpts.binds since they will be streamed from the update instead
-    });
-    
-    // now that the write streams are ready and the read binds have been renamed,
-    // we can cycle through the bind arrays and write them to the appropriate tables
-    for (let writeStream of rtn.txExpPsRslts.rows) {
-      await pipeline(
-        // here we're just using some static values for illustration purposes, but they can come from a
-        // any readable stream source like a file, database, etc. as long as they are "transformed"
-        // into JSON binds before the sqler writable stream receives them
-        Stream.Readable.from(table1BindsArray),
-        writeStream
-      );
+    let ni = 0;
+    const bindsArrays = [ table1BindsArray, table2BindsArray ];
+    // don't exceed connection pool count
+    rtn.txExpPsRslts = new Array(bindsArrays.length);
+    for (let bindsArray of bindsArrays) {
+      // Example using an implicit transaction for each streamed (autoCommit = true is the default)
+      rtn.txExpPsRslts[ni] = await manager.db[connName].update[`table${ni + 1}`].rows({
+        autoCommit: false, // don't auto-commit after execution
+        transactionId: tx.id, // ensure execution takes place within transaction
+        prepareStatement: true, // ensure a prepared statement is used
+        driverOptions: {
+          // prepared statements in MySQL/MariaDB use a temporary
+          // stored procedure to execute prepared statements...
+          // in order to do so, the stored procedure needs to have
+          // a database scope defined where it will reside
+          preparedStatementDatabase: 'sqlermysql'
+        },
+        // update binds will be batched in groups of 1 before streaming them to the database since
+        // execOpts.stream = 1, but we could have batched them in groups (stream = 2) as well
+        // https://mariadb.com/kb/en/connector-nodejs-promise-api/#connectionbatchsql-values-promise
+        stream: 1
+        // no need to set execOpts.binds since they will be streamed from the update instead
+      });
+  
+      // now that the write streams are ready and the read binds have been renamed,
+      // we can cycle through the bind arrays and write them to the appropriate tables
+      for (let writeStream of rtn.txExpPsRslts[ni].rows) {
+        await pipeline(
+          // here we're just using some static values for illustration purposes, but they can come from a
+          // any readable stream source like a file, database, etc. as long as they are "transformed"
+          // into JSON binds before the sqler writable stream receives them
+          Stream.Readable.from(bindsArray),
+          writeStream
+        );
+      }
+      ni++;
     }
 
     // unprepare will be called when calling commit
