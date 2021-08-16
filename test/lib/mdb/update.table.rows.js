@@ -43,7 +43,7 @@ async function implicitTransactionUpdate(manager, connName, rtn, table1BindsArra
   rtn.txImpRslts = new Array(table1BindsArray.length + table2BindsArray.length);
 
   // simple iterator over all the binds
-  forEach('Implicit transaction', table1BindsArray, table2BindsArray, (idx, ti, ri, binds, nameProp) => {
+  forEach('UPDATE', 'Implicit transaction', table1BindsArray, table2BindsArray, (idx, ti, ri, binds, nameProp) => {
 
     // Example execution in parallel using an implicit transaction for
     // each SQL execution (autoCommit = true is the default)
@@ -70,7 +70,7 @@ async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArra
     tx = await manager.db[connName].beginTransaction();
 
     // simple iterator over all the binds
-    forEach('Explicit transaction', table1BindsArray, table2BindsArray, (idx, ti, ri, binds, nameProp) => {
+    forEach('UPDATE_TX', 'Explicit transaction', table1BindsArray, table2BindsArray, (idx, ti, ri, binds, nameProp) => {
 
       // Example execution in parallel (same transacion)
       rtn.txExpRslts[idx] = manager.db[connName].update[`table${ti + 1}`].rows({
@@ -148,7 +148,7 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
 
     for (let i = 0; i < table1BindsArray.length; i++) {
       // update with expanded name
-      table1BindsArray[i].name = `TABLE: 1, ROW: ${i + 1}, UPDATE_PS: "PS with txId ${tx.id}"`;
+      table1BindsArray[i].name = `TABLE: 1, ROW: ${i + 1}, UPDATE_PS_TX: "PS with txId ${tx.id}"`;
       rtn.txExpPsRslts[i] = manager.db[connName].update.table1.rows({
         name: table1BindsArray[i].name, // name is optional
         autoCommit: false, // don't auto-commit after execution
@@ -184,7 +184,7 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
 }
 
 // just a utility function to iterate over muliple bind arrays and update bind names
-function forEach(label, table1BindsArray, table2BindsArray, itemHandler) {
+function forEach(name, label, table1BindsArray, table2BindsArray, itemHandler) {
   const ln = table1BindsArray.length + table2BindsArray.length;
   for (let i = 0, ti, ri, barr, nameProp; i < ln; i++) {
     // select which table the binds are for
@@ -200,7 +200,7 @@ function forEach(label, table1BindsArray, table2BindsArray, itemHandler) {
     nameProp = `name${ti ? ti + 1 : ''}`;
 
     // update with expanded name
-    barr[ri][nameProp] = `TABLE: ${ti + 1}, ROW: ${ri + 1}, UPDATE: "${label} ${i + 1}"`;
+    barr[ri][nameProp] = `TABLE: ${ti + 1}, ROW: ${ri + 1}, ${name}: "${label} ${i + 1}"`;
 
     itemHandler(i, ti, ri, barr[ri], nameProp);
   }

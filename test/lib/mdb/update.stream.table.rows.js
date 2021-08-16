@@ -54,7 +54,7 @@ module.exports = async function runExample(manager, connName) {
 
 async function implicitTransactionUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
   // simply rename all the bind names to reflect the action being performed
-  nameAll('Implicit transaction', table1BindsArray, table2BindsArray);
+  nameAll('UPDATE_STREAM', 'Implicit transaction', table1BindsArray, table2BindsArray);
 
   let ni = 0;
   const bindsArrays = [ table1BindsArray, table2BindsArray ];
@@ -93,7 +93,7 @@ async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArra
     tx = await manager.db[connName].beginTransaction();
 
     // simply rename all the bind names to reflect the action being performed
-    nameAll('Explicit transaction', table1BindsArray, table2BindsArray);
+    nameAll('UPDATE_STREAM_TX', 'Explicit transaction', table1BindsArray, table2BindsArray);
 
     let ni = 0;
     const bindsArrays = [ table1BindsArray, table2BindsArray ];
@@ -137,7 +137,7 @@ async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArra
 async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray) {
   try {
     // simply rename all the bind names to reflect the action being performed
-    nameAll('Prepared statement', table1BindsArray);
+    nameAll('UPDATE_STREAM_PS', 'Prepared statement', table1BindsArray);
 
     // Example using an implicit transaction for each streamed (autoCommit = true is the default)
     rtn.psRslts = await manager.db[connName].update.table1.rows({
@@ -192,7 +192,7 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
     tx = await manager.db[connName].beginTransaction();
 
     // simply rename all the bind names to reflect the action being performed
-    nameAll(`Prepared statement with txId ${tx.id}`, table1BindsArray);
+    nameAll('UPDATE_STREAM_PS_TX', `Prepared statement with txId ${tx.id}`, table1BindsArray);
 
     // Example using an implicit transaction for each streamed (autoCommit = true is the default)
     rtn.txExpPsRslts = await manager.db[connName].update.table1.rows({
@@ -239,7 +239,7 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
 }
 
 // just a utility function to iterate over muliple bind arrays and rename them
-function nameAll(label, table1BindsArray, table2BindsArray) {
+function nameAll(name, label, table1BindsArray, table2BindsArray) {
   const ln = table1BindsArray.length + (table2BindsArray ? table2BindsArray.length : 0);
   for (let i = 0, ti, ri, barr; i < ln; i++) {
     // select which table the binds are for
@@ -253,7 +253,7 @@ function nameAll(label, table1BindsArray, table2BindsArray) {
       barr = table2BindsArray;
     }
     // update with expanded name
-    barr[ri][`name${ti ? ti + 1 : ''}`] = `TABLE: ${ti + 1}, ROW: ${ri + 1}, UPDATE_STREAM: "${label} ${i + 1}"`;
+    barr[ri][`name${ti ? ti + 1 : ''}`] = `TABLE: ${ti + 1}, ROW: ${ri + 1}, ${name}: "${label} ${i + 1}"`;
   }
   return [ 'name', 'name2' ];
 }

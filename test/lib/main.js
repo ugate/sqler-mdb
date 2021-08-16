@@ -392,7 +392,8 @@ async function crud(type, count = 0) {
   const isStream = type === 'stream';
   const streamClassRead = isStream ? Stream.Readable : null;
   const streamClassWrite = isStream ? Stream.Writable : null;
-  const updateNameIncl = isStream ? 'Prepared statement with txId' : 'UPDATE_PS';
+  const createNameIncl = isStream ? 'CREATE_STREAM' : 'CREATE';
+  const updateNameIncl = isStream ? 'UPDATE_STREAM_PS_TX' : 'UPDATE_PS_TX';
   const typd = type ? `.${type}` : '';
   let rslti = -1, state = {};
 
@@ -402,7 +403,7 @@ async function crud(type, count = 0) {
 
   const read = getCrudOp(`read${typd}`, test.vendor);
   rslts[++rslti] = await read(test.mgr, test.vendor);
-  crudly(state, { label: `read${typd}`, streamClass: streamClassRead, nameIncl: isStream ? type.toUpperCase() : 'TABLE', count }, rslts[rslti]);
+  crudly(state, { label: `read${typd}`, streamClass: streamClassRead, nameIncl: createNameIncl, count }, rslts[rslti]);
 
   const update = getCrudOp(`update${typd}`, test.vendor);
   rslts[++rslti] = await update(test.mgr, test.vendor);

@@ -14,8 +14,8 @@ module.exports = async function runExample(manager, connName) {
   // Insert rows into multiple tables within a single execution
   const rslt = await manager.db[connName].create.table.rows({
     binds: {
-      id: 1, name: 'TABLE: 1, ROW: 1', created: date, updated: date,
-      id2: 1, name2: 'TABLE: 2, ROW: 1', report2: report, created2: date, updated2: date
+      id: 1, name: 'TABLE: 1, ROW: 1, CREATE: "Initial creation"', created: date, updated: date,
+      id2: 1, name2: 'TABLE: 2, ROW: 1, CREATE: "Initial creation"', report2: report, created2: date, updated2: date
     }
   });
 

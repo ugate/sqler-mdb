@@ -33,12 +33,12 @@ module.exports = async function runExample(manager, connName) {
       // into JSON binds before the sqler writable stream receives them
       Stream.Readable.from([
         {
-          id: 100, name: 'TABLE: 1, ROW: 1, STREAM', created: date, updated: date,
-          id2: 100, name2: 'TABLE: 2, ROW: 1, STREAM', report2: report, created2: date, updated2: date
+          id: 100, name: 'TABLE: 1, ROW: 1, CREATE_STREAM: "Initial creation"', created: date, updated: date,
+          id2: 100, name2: 'TABLE: 2, ROW: 1, CREATE_STREAM: "Initial creation"', report2: report, created2: date, updated2: date
         },
         {
-          id: 200, name: 'TABLE: 1, ROW: 2, STREAM', created: date, updated: date,
-          id2: 200, name2: 'TABLE: 2, ROW: 2, STREAM', report2: report, created2: date, updated2: date
+          id: 200, name: 'TABLE: 1, ROW: 2, CREATE_STREAM: "Initial creation"', created: date, updated: date,
+          id2: 200, name2: 'TABLE: 2, ROW: 2, CREATE_STREAM: "Initial creation"', report2: report, created2: date, updated2: date
         }
       ]),
       writeStream
