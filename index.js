@@ -337,7 +337,7 @@ function operation(dlt, name, reset, txoOrConn, opts, preop) {
         opts ? JSON.stringify(opts) : 'N/A'}`, dlt, null, err);
       throw err;
     } finally {
-      if ((!txo || (name === 'commit' || name === 'rollback')) && conn && name !== 'end' && name !== 'release') {
+      if ((recorder && recorder.error) || (!txo && conn && name !== 'end' && name !== 'release')) {
         await finalize(recorder, dlt, () => Promise.resolve(conn.release()));
       }
     }
