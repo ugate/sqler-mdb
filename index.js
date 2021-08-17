@@ -645,6 +645,7 @@ function createWriteStream(dlt, sql, opts, meta, txo, rtn) {
 
 /**
  * Error handler
+ * @private
  * @param {String} label A label to use to describe the error
  * @param {MDBInternal} dlt The internal dialect object instance
  * @param {typedefs.SQLERExecMeta} [meta] The SQL execution metadata
@@ -666,6 +667,7 @@ function errored(label, dlt, meta, error) {
 
 /**
  * Finally block handler
+ * @private
  * @param {InternalFlightRecorder} [recorder] The flight recorder
  * @param {MDBInternal} dlt The internal dialect object instance
  * @param {Function} [func] An `async function()` that will be invoked in a catch wrapper that will be consumed and recorded when a flight recorder is
@@ -704,6 +706,10 @@ let internal = function(dialect) {
 };
 
 /**
+ * @typedef {typedefs.SQLERConnectionOptions | MDBConnectionOptionsType} MDBConnectionOptions
+ */
+
+/**
  * MariaDB + MySQL specific extension of the {@link SQLERConnectionOptions} from the [`sqler`](https://ugate.github.io/sqler/) module.
  * @typedef {Object} MDBConnectionOptionsType
  * @property {Object} driverOptions The `mariadb` (w/MySQL support) module specific options. __Both `connection` and `pool` will be merged when generating
@@ -724,7 +730,6 @@ let internal = function(dialect) {
  * When a value is a string surrounded by `${}`, it will be assumed to be a _constant_ property that resides on the `mariadb` module and will be interpolated
  * accordingly.
  * For example `driverOptions.pool.someProp = '${SOME_MARIADB_CONSTANT}'` will be interpolated as `pool.someProp = mariadb.SOME_MARIADB_CONSTANT`.
- * @typedef {typedefs.SQLERConnectionOptions & MDBConnectionOptionsType} MDBConnectionOptions
  */
 
 /**
@@ -746,13 +751,17 @@ let internal = function(dialect) {
  */
 
 /**
+ * @typedef {typedefs.SQLERExecOptions | MDBExecOptionsType} MDBExecOptions
+ */
+
+/**
  * MariaDB + MySQL specific extension of the {@link SQLERExecOptions} from the [`sqler`](https://ugate.github.io/sqler/) module. When a property of `binds`
  * contains an object it will be _interpolated_ for property values on the `mariadb` module.
  * For example, `binds.name = '${SOME_MARIADB_CONSTANT}'` will be interpolated as
  * `binds.name = mariadb.SOME_MARIADB_CONSTANT`.
  * @typedef {Object} MDBExecOptionsType
  * @property {MDBExecDriverOptions} [driverOptions] The `mariadb` module specific options.
- * @typedef {typedefs.SQLERExecOptions & MDBExecOptionsType} MDBExecOptions
+ * 
  */
 
 /**
@@ -762,6 +771,7 @@ let internal = function(dialect) {
  * @property {DBDriver.Connection} conn The connection
  * @property {Map<String, Function>} unprepares Map of prepared statement names (key) and no-argument _async_ functions that will be called as a pre-operation call prior to
  * `commit` or `rollback` (value)
+ * @private
  */
 
 // ========================================== Internal Use ==========================================
@@ -804,6 +814,7 @@ let internal = function(dialect) {
  * it not a `size` bind parameter on the PS SQL).
  * @returns {Object} The prepared statement execution results
  * @async
+ * @private
  */
 
 /**
@@ -812,6 +823,12 @@ let internal = function(dialect) {
  * @param {Object[]} [binds] An array that contains objects that is assigned the bind parameters as property names and property values as the bound values.
  * @returns {Object[]} An array of prepared statement execution results
  * @async
+ * @private
+ */
+
+/**
+ * @typedef {EventEmitter | InternalPreparedStatementType} InternalPreparedStatement
+ * @private
  */
 
 /**
@@ -832,7 +849,6 @@ let internal = function(dialect) {
  * @property {InternalPreparedStatementExec} exec The function that executes the prepared statement SQL and returns the results
  * @property {InternalPreparedStatementBatch} batch The function that executes a batch of prepared statement SQL and returns the results
  * @property {Function} unprepare A no-argument _async_ function that unprepares the outstanding prepared statement
- * @typedef {EventEmitter & InternalPreparedStatementType} InternalPreparedStatement
  * @private
  */
 
@@ -840,4 +856,5 @@ let internal = function(dialect) {
  * @typedef {Object} InternalFlightRecorder
  * @property {Error} [error] An errored that occurred
  * @property {DBDriver.Connection} [conn] A connection that will be `released` when an error exists
+ * @private
  */
