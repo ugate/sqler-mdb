@@ -350,11 +350,11 @@ function operation(dlt, name, reset, txoOrConn, opts, preop) {
         dlt.at.state.pending = 0;
       }
       if (dlt.at.logger) {
-        dlt.at.logger(`sqler-mdb: Performed ${name} on connection pool "${dlt.at.opts.id}" for "${opts.type}"${statusLabel(dlt, opts)}`);
+        dlt.at.logger(`sqler-mdb: Performed ${name} on connection pool "${dlt.at.opts.id}" ${statusLabel(dlt, opts)}`);
       }
     } catch (err) {
       recorder = errored(`sqler-mdb: Failed to ${name} ${dlt.at.state.pending} transaction(s) with options: ${
-        opts ? JSON.stringify(opts) : 'N/A'}`, dlt, null, err);
+        opts ? JSON.stringify(Object.keys(opts)) : 'N/A'}`, dlt, null, err);
       throw err;
     } finally {
       if ((recorder && recorder.error) || (!txo && conn && name !== 'end' && name !== 'release')) {
@@ -397,7 +397,7 @@ async function prepared(dlt, sql, opts, meta, txo, rtn) {
           await pso.conn.query(`DROP PROCEDURE ${pso.procedure}`);
         } finally {
           if (!hasTX) {
-            await pso.conn.release();
+            await operation(dlt, 'release', false, pso.conn, opts)();
             if (opts.stream >= 0) pso.emit(typedefs.EVENT_STREAM_RELEASE);
           }
         }
@@ -714,7 +714,7 @@ function errored(label, dlt, meta, error) {
 /**
  * Finally block handler
  * @private
- * @param {(InternalFlightRecorder || InternalFlightRecorder[])} [recorder] The flight recorder
+ * @param {(InternalFlightRecorder | InternalFlightRecorder[])} [recorder] The flight recorder
  * @param {MDBInternal} dlt The internal dialect object instance
  * @param {Function} [func] An `async function()` that will be invoked in a catch wrapper that will be consumed and recorded when a flight recorder is
  * provided
@@ -756,15 +756,9 @@ let internal = function(dialect) {
 };
 
 /**
- * @typedef {typedefs.SQLERConnectionOptions | MDBConnectionOptionsType} MDBConnectionOptions
- */
-
-/**
- * MariaDB + MySQL specific extension of the {@link SQLERConnectionOptions} from the [`sqler`](https://ugate.github.io/sqler/) module.
- * @typedef {Object} MDBConnectionOptionsType
- * @property {Object} driverOptions The `mariadb` (w/MySQL support) module specific options. __Both `connection` and `pool` will be merged when generating
- * the connection pool.__
- * @property {Object} [driverOptions.connection] An object that will contain properties/values that will be used to construct the MariaDB + MySQL connection
+ * The `mariadb` (w/MySQL support) module specific options. __Both `connection` and `pool` will be merged when generating the connection pool.__
+ * @typedef {Object} MDBConnectionDriverOptions
+ * @property {Object} [connection] An object that will contain properties/values that will be used to construct the MariaDB + MySQL connection
  * (e.g. `{ database: 'mydb', timezone: '-0700' }`). See the `mariadb` module documentation for a full listing of available connection options.
  * When a property value is a string surrounded by `${}`, it will be assumed to be a property that resides on either the {@link SQLERPrivateOptions}
  * passed into the {@link Manager} constructor or a property on the {@link MDBConnectionOptions} itself (in that order of precedence). For example, 
@@ -773,13 +767,21 @@ let internal = function(dialect) {
  * `driverOptions.connection.user = 'someUsername'`.
  * Interpoaltions can also contain more than one reference. For example, `driverOptions.connection.someProp = '${protocol}:${host}'` for 
  * `privOpts = { protocol: 'TCP', host: 'example.com' }` would become `someProp='TCP:example.com'`.
- * @property {Object} [driverOptions.pool] The pool `conf` options that will be passed into `mariadb.createPool(conf)`. See the `mariadb` module for a full
+ * @property {Object} [pool] The pool `conf` options that will be passed into `mariadb.createPool(conf)`. See the `mariadb` module for a full
  * listing of avialable connection pooling options.
  * __Using any of the generic `pool.someOption` will override the `conf` options set on `driverOptions.pool`__ (e.g. `pool.max = 10` would override 
  * `driverOptions.pool.connectionLimit = 20`).
  * When a value is a string surrounded by `${}`, it will be assumed to be a _constant_ property that resides on the `mariadb` module and will be interpolated
  * accordingly.
  * For example `driverOptions.pool.someProp = '${SOME_MARIADB_CONSTANT}'` will be interpolated as `pool.someProp = mariadb.SOME_MARIADB_CONSTANT`.
+ */
+
+/**
+ * MariaDB + MySQL specific extension of the {@link SQLERConnectionOptions} from the [`sqler`](https://ugate.github.io/sqler/) module.
+ * @typedef {Object} MDBConnectionOptionsType
+ * @property {MDBConnectionDriverOptions} driverOptions The `mariadb` (w/MySQL support) module specific options. __Both `connection` and `pool` will be merged
+ * when generating the connection pool.__
+ * @typedef {typedefs.SQLERConnectionOptions & MDBConnectionOptionsType} MDBConnectionOptions
  */
 
 /**
@@ -801,17 +803,13 @@ let internal = function(dialect) {
  */
 
 /**
- * @typedef {typedefs.SQLERExecOptions | MDBExecOptionsType} MDBExecOptions
- */
-
-/**
  * MariaDB + MySQL specific extension of the {@link SQLERExecOptions} from the [`sqler`](https://ugate.github.io/sqler/) module. When a property of `binds`
  * contains an object it will be _interpolated_ for property values on the `mariadb` module.
  * For example, `binds.name = '${SOME_MARIADB_CONSTANT}'` will be interpolated as
  * `binds.name = mariadb.SOME_MARIADB_CONSTANT`.
  * @typedef {Object} MDBExecOptionsType
  * @property {MDBExecDriverOptions} [driverOptions] The `mariadb` module specific options.
- * 
+ * @typedef {typedefs.SQLERExecOptions & MDBExecOptionsType} MDBExecOptions
  */
 
 /**
@@ -877,11 +875,6 @@ let internal = function(dialect) {
  */
 
 /**
- * @typedef {EventEmitter | InternalPreparedStatementType} InternalPreparedStatement
- * @private
- */
-
-/**
  * Prepared statement
  * @typedef {Object} InternalPreparedStatementType
  * @property {String} name The prepared statement name
@@ -899,6 +892,7 @@ let internal = function(dialect) {
  * @property {InternalPreparedStatementExec} exec The function that executes the prepared statement SQL and returns the results
  * @property {InternalPreparedStatementBatch} batch The function that executes a batch of prepared statement SQL and returns the results
  * @property {Function} unprepare A no-argument _async_ function that unprepares the outstanding prepared statement
+ * @typedef {EventEmitter & InternalPreparedStatementType} InternalPreparedStatement
  * @private
  */
 
