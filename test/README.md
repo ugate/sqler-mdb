@@ -24,16 +24,18 @@ docker-compose build sqler_mdb_dialect
 docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --force-recreate
 ```
 
-### Running Tests
-From a different command prompt, run the test suite using the following command:
+### Testing: Run/Debug
+From a different command prompt, run the following command(s):
 ```sh
+# end-to-end
 docker exec -i sqler_mdb_dialect bash "npm test"
-```
-
-### Debugging Tests
-From a different command prompt, debug a test function using the following commands:
-```sh
+# unit
 docker exec -it sqler_mdb_dialect bash
+"node_modules/.bin/lab" test/main.test.js -v
+"node_modules/.bin/lab" test/main.test.js -vi 1
+# functional (replace "someTestFunction" with static function name in test/lib/main.js)
+docker exec -it sqler_mdb_dialect bash
+node test/lib/main.js someTestFunction -NODE_ENV=test
 node --inspect-brk=0.0.0.0 test/lib/main.js someTestFunction -NODE_ENV=test
 // connections can be established using the normal node debug port `9229`
 ```

@@ -58,7 +58,6 @@ async function implicitTransactionUpdate(manager, connName, rtn, table1BindsArra
 
   let ni = 0;
   const bindsArrays = [ table1BindsArray, table2BindsArray ];
-  // don't exceed connection pool count
   rtn.txImpRslts = new Array(bindsArrays.length);
   for (let bindsArray of bindsArrays) {
     // Example using an implicit transaction for each streamed (autoCommit = true is the default)
@@ -86,10 +85,10 @@ async function implicitTransactionUpdate(manager, connName, rtn, table1BindsArra
 }
 
 async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
+  // start a transaction
   /** @type {typedefs.SQLERTransaction} */
   let tx;
   try {
-    // start a transaction
     tx = await manager.db[connName].beginTransaction();
 
     // simply rename all the bind names to reflect the action being performed
@@ -97,11 +96,12 @@ async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArra
 
     let ni = 0;
     const bindsArrays = [ table1BindsArray, table2BindsArray ];
-    // don't exceed connection pool count
     rtn.txExpRslts = new Array(bindsArrays.length);
     for (let bindsArray of bindsArrays) {
       // Example using an implicit transaction for each streamed (autoCommit = true is the default)
       rtn.txExpRslts[ni] = await manager.db[connName].update[`table${ni + 1}`].rows({
+        autoCommit: false, // don't auto-commit after execution
+        transactionId: tx.id, // ensure execution takes place within transaction
         // update binds will be batched in groups of 1 before streaming them to the database since
         // execOpts.stream = 1, but we could have batched them in groups (stream = 2) as well
         // https://mariadb.com/kb/en/connector-nodejs-promise-api/#connectionbatchsql-values-promise
@@ -112,6 +112,16 @@ async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArra
       // now that the write streams are ready and the read binds have been renamed,
       // we can cycle through the bind arrays and write them to the appropriate tables
       for (let writeStream of rtn.txExpRslts[ni].rows) {
+        // writeStream.on('end', async () => {console.log('WRITE END!!!!!!!!!!!!!!!!!!!!!', tx)
+        //   if (tx.state.isReleased) return;
+        //   const isReleaseConn = (tx.state.committed + tx.state.rolledback) === (bindsArrays.length - 1);
+        //   //await tx.commit(isReleaseConn);
+        // })
+        // writeStream.on('error', async (err) => {console.log('WRITE ERROR!!!!!!!!!!!!!!!!!!!!!', tx)
+        //   if (tx.state.isReleased) return;
+        //   const isReleaseConn = (tx.state.committed + tx.state.rolledback) === (bindsArrays.length - 1);
+        //   //await tx.rollback(isReleaseConn);
+        // });
         await pipeline(
           // here we're just using some static values for illustration purposes, but they can come from a
           // any readable stream source like a file, database, etc. as long as they are "transformed"
@@ -123,12 +133,10 @@ async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArra
       ni++;
     }
 
-    // commit the transaction
-    await tx.commit();
+    await tx.commit(true);
   } catch (err) {
     if (tx) {
-      // rollback the transaction
-      await tx.rollback();
+      await tx.rollback(true);
     }
     throw err;
   }
@@ -181,13 +189,12 @@ async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray,
     
   } finally {
     // could call unprepare using any of the returned execution results
-    if (rtn.psRslts && rtn.psRslts.unprepare) {
+    if (rtn.psRslts && rtn.psRslts[0] && rtn.psRslts[0].unprepare) {
       // since prepareStatement = true, we need to close the statement
       // and release the statement connection back to the pool
       // (also drops the temporary stored procedure that executes the
       // prepared statement)
-      await rtn.psRslts.unprepare();
-      console.log(table1BindsArray)
+      await rtn.psRslts[0].unprepare();
     }
   }
 }
@@ -229,6 +236,16 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
       // now that the write streams are ready and the read binds have been renamed,
       // we can cycle through the bind arrays and write them to the appropriate tables
       for (let writeStream of rtn.txExpPsRslts[ni].rows) {
+        // writeStream.on('end', async () => {console.log('WRITE END!!!!!!!!!!!!!!!!!!!!!', tx)
+        //   if (tx.state.isReleased) return;
+        //   const isReleaseConn = (tx.state.committed + tx.state.rolledback) === (bindsArrays.length - 1);
+        //   //await tx.commit(isReleaseConn);
+        // })
+        // writeStream.on('error', async (err) => {console.log('WRITE ERROR!!!!!!!!!!!!!!!!!!!!!', tx)
+        //   if (tx.state.isReleased) return;
+        //   const isReleaseConn = (tx.state.committed + tx.state.rolledback) === (bindsArrays.length - 1);
+        //   //await tx.rollback(isReleaseConn);
+        // });
         await pipeline(
           // here we're just using some static values for illustration purposes, but they can come from a
           // any readable stream source like a file, database, etc. as long as they are "transformed"
@@ -242,12 +259,12 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
 
     // unprepare will be called when calling commit
     // (alt, could have called unprepare before commit)
-    await tx.commit();
+    await tx.commit(true);
   } catch (err) {
     if (tx) {
       // unprepare will be called when calling rollback
       // (alt, could have called unprepare before rollback)
-      await tx.rollback();
+      await tx.rollback(true);
     }
     throw err;
   }

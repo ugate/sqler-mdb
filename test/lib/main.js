@@ -122,6 +122,14 @@ class Tester {
     return crud('stream', 4 /* 2 for each table */);
   }
 
+  /**
+   * Test CRUD stream errors for a specified `priv.vendor` and `priv.mgr`
+   */
+  static async crudStreamThrow() {
+    const update = getCrudOp(`update.stream.error`, test.vendor);
+    await update(test.mgr, test.vendor);
+  }
+
   static async execDriverOptionsAlt() {
     const reader = test.mgr.db[test.vendor].read.table.rows({
       binds: { name: 'table' },
@@ -165,16 +173,6 @@ class Tester {
         id2: 500, name2: 'SHOULD NEVER GET INSERTED', report2: Buffer.from('INVALID'), created2: date, updated2: date
       }
     });
-  }
-
-  static async readStream() {
-    Labrat.header(`${test.vendor}: Running read stream tests`, 'info');
-    const rslts = new Array(1);
-    let rslti = -1, state = {};
-
-    const read = getCrudOp('read.stream', test.vendor);
-    rslts[++rslti] = await read(test.mgr, test.vendor);
-    crudly(state, { label: 'read stream', nameIncl: 'TABLE', streamClass: Stream.Readable }, rslts[rslti]);
   }
 
   //====================== Configurations ======================

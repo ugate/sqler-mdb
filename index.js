@@ -102,7 +102,7 @@ class MDBDialect {
       throw err;
     } finally {
       if (conn) {
-        await finalize(recorder, dlt, operation(dlt, 'release', false, conn, opts, null, recorder && recorder.error));
+        await finalize(recorder, dlt, operation(dlt, 'release', false, conn, opts));
       }
     }
   }
@@ -118,21 +118,30 @@ class MDBDialect {
     if (dlt.at.logger) {
       dlt.at.logger(`sqler-mdb: Beginning transaction "${txId}" on connection pool "${dlt.at.opts.id}"`);
     }
-    /** @type {SQLERTransaction} */
+    /** @type {typedefs.SQLERTransaction} */
     const tx = {
       id: txId,
       state: Object.seal({
-        isCommitted: false,
-        isRolledback: false,
-        pending: 0
+        committed: 0,
+        rolledback: 0,
+        pending: 0,
+        isReleased: false
       })
     };
     /** @type {MDBTransactionObject} */
     const txo = { tx, conn: await dlt.at.pool.getConnection() };
     const opts = { transactionId: tx.id };
     await txo.conn.beginTransaction();
-    tx.commit = operation(dlt, 'commit', true, txo, opts, 'unprepare');
-    tx.rollback = operation(dlt, 'rollback', true, txo, opts, 'unprepare');
+    const commit = operation(dlt, 'commit', false, txo, opts, 'unprepare');
+    tx.commit = async (isRelease) => {
+      await commit();
+      if (isRelease) await operation(dlt, 'release', true, txo, opts)();
+    };
+    const rollback = operation(dlt, 'rollback', false, txo, opts, 'unprepare');
+    tx.rollback = async (isRelease) => {
+      await rollback();
+      if (isRelease) await operation(dlt, 'release', true, txo, opts)();
+    };
     Object.freeze(tx);
     dlt.at.transactions.set(txId, txo);
     return tx;
@@ -163,20 +172,18 @@ class MDBDialect {
       /** @type {typedefs.SQLERExecResults} */
       const rtn = {};
 
-      if (!opts.prepareStatement) {
-        execMeta = createExecMeta(dlt, sql, opts);
-      }
-
       if (!txo && !opts.prepareStatement && opts.stream < 0 && opts.type === 'READ') {
         // pool.query will auto-release the connection
+        execMeta = createExecMeta(dlt, sql, opts);
         rslts = await dlt.at.pool.query(execMeta.sql, execMeta.binds);
       } else {
         if (opts.stream >= 0) { // streams handle prepared statements when streaming starts
-          rslts = [ opts.type === 'READ' ? await createReadStream(dlt, execMeta, opts, txo, rtn) : createWriteStream(dlt, sql, opts, meta, txo, rtn) ];
+          rslts = [ opts.type === 'READ' ? await createReadStream(dlt, sql, opts, meta, txo, rtn) : createWriteStream(dlt, sql, opts, meta, txo, rtn) ];
         } else if (opts.prepareStatement) {
           pso = await prepared(dlt, sql, opts, meta, txo, rtn);
           rslts = await pso.exec(opts.binds);
         } else {
+          execMeta = createExecMeta(dlt, sql, opts);
           conn = txo ? null : await dlt.at.pool.getConnection();
           rslts = await (txo ? txo.conn : conn).query(execMeta.sql, execMeta.binds);
         }
@@ -187,8 +194,9 @@ class MDBDialect {
           }
           if (opts.autoCommit) {
             // MariaDB/MySQL has no option to autocommit during SQL execution
-            await operation(dlt, 'commit', false, txo, opts, 'unprepare')();
+            await operation(dlt, 'commit', false, txo, opts, opts.prepareStatement ? 'unprepare' : null)();
           } else {
+            txo.tx.state.pending++;
             dlt.at.state.pending++;
           }
         }
@@ -214,7 +222,7 @@ class MDBDialect {
     const dlt = internal(this);
     try {
       if (dlt.at.logger) {
-        dlt.at.logger(`sqler-mdb: Closing connection pool "${dlt.at.opts.id}" (${statusLabel(dlt)})`);
+        dlt.at.logger(`sqler-mdb: Closing connection pool "${dlt.at.opts.id}"${statusLabel(dlt)}`);
       }
       if (dlt.at.pool) {
         await dlt.at.pool.end();
@@ -222,11 +230,11 @@ class MDBDialect {
         dlt.at.stmts.clear();
       }
       if (dlt.at.logger) {
-        dlt.at.logger(`sqler-mdb: Closed connection pool "${dlt.at.opts.id}" (${statusLabel(dlt)})`);
+        dlt.at.logger(`sqler-mdb: Closed connection pool "${dlt.at.opts.id}"${statusLabel(dlt)}`);
       }
       return dlt.at.state.pending;
     } catch (err) {
-      errored(`sqler-mdb: Failed to close connection pool "${dlt.at.opts.id}" (${statusLabel(dlt)})`, dlt, null, err);
+      errored(`sqler-mdb: Failed to close connection pool "${dlt.at.opts.id}"${statusLabel(dlt)}`, dlt, null, err);
       throw err;
     }
   }
@@ -301,7 +309,7 @@ function createExecMeta(dlt, sql, opts, bindsAlt) {
  * @param {(MDBTransactionObject | Object)} txoOrConn Either the transaction object or the connection itself
  * @param {typedefs.SQLERExecOptions} [opts] The {@link SQLERExecOptions}
  * @param {String} [preop] An operation name that will be performed before the actual operation. The following values are valid:
- * 1. __`unprepare`__ - Any un-prepare functions that are associated with the passed {@link PGTransactionObject} will be executed.
+ * 1. __`unprepare`__ - Any un-prepare functions that are associated with the passed {@link MDBTransactionObject} will be executed.
  * @returns {Function} A no-arguement `async` function that returns the number or pending transactions
  */
 function operation(dlt, name, reset, txoOrConn, opts, preop) {
@@ -321,16 +329,28 @@ function operation(dlt, name, reset, txoOrConn, opts, preop) {
       }
     }
     try {
+      if (txo && txo.tx.state.isReleased && (name === 'commit' || name === 'rollback')) {
+        return Promise.reject(new Error(`"${name}" already called on transaction "${txo.tx.id}"`));
+      }
       if (dlt.at.logger) {
-        dlt.at.logger(`sqler-mdb: Performing ${name} on connection pool "${dlt.at.opts.id}" (${statusLabel(dlt)})`);
+        dlt.at.logger(`sqler-mdb: Performing ${name} on connection pool "${dlt.at.opts.id}"${statusLabel(dlt, opts)}`);
       }
       await conn[name]();
+      if (txo) {
+        if (name === 'commit') {
+          txo.tx.state.committed++;
+        } else if (name === 'rollback') {
+          txo.tx.state.rolledback++;
+        } else if (name === 'release') {
+          txo.tx.state.isReleased = true;
+        }
+      }
       if (reset) { // not to be confused with mariadb connection.reset();
         if (txo) dlt.at.transactions.delete(txo.tx.id);
         dlt.at.state.pending = 0;
       }
       if (dlt.at.logger) {
-        dlt.at.logger(`sqler-mdb: Performed ${name} on connection pool "${dlt.at.opts.id}" (${statusLabel(dlt)})`);
+        dlt.at.logger(`sqler-mdb: Performed ${name} on connection pool "${dlt.at.opts.id}" for "${opts.type}"${statusLabel(dlt, opts)}`);
       }
     } catch (err) {
       recorder = errored(`sqler-mdb: Failed to ${name} ${dlt.at.state.pending} transaction(s) with options: ${
@@ -395,7 +415,7 @@ async function prepared(dlt, sql, opts, meta, txo, rtn) {
   if (isPrepare) {
     pso.name = meta.name;
     pso.shortName = pso.name.length > MAX_MDB_NAME_LGTH ? `sqler_mdb_prep_stmt${Math.floor(Math.random() * 10000)}` : pso.name;
-    pso.exec = async (binds, size) => {
+    pso.exec = async (binds) => {
       if (!dlt.at.stmts.has(meta.name)) {
         throw new Error(`sqler-mdb: Prepared statement not found for "${meta.name}" during writable stream batch`);
       }
@@ -414,7 +434,7 @@ async function prepared(dlt, sql, opts, meta, txo, rtn) {
           pso.psql = preparedStmtProc(pso);
           pso.procProm = pso.conn.query(pso.psql); // prepare/exec PS (other exec need access to wait for proc to be created)
           await pso.procProm; // wait for the PS stored proc to be created
-          pso.prepareExecProm = preparedStmtProcExec(pso, pso.conn, pso.execMeta.bndp, true);  // wait for the initial PS stored proc to be created/executed
+          pso.prepareExecProm = preparedStmtProcExec(pso, pso.conn, pso.execMeta.bndp, false, true);  // wait for the initial PS stored proc to be created/executed
           pso.procProm = pso.prepareExecProm = null; // reset promises once they completed
           execMeta = pso.execMeta;
         } else {
@@ -423,14 +443,12 @@ async function prepared(dlt, sql, opts, meta, txo, rtn) {
           if (pso.procProm) await pso.procProm; // wait for the initial PS stored proc to be created
           if (pso.prepareExecProm) await pso.prepareExecProm; // wait for the initial PS to be prepared
         }
-        if (size !== undefined && (!execMeta.bndp || !execMeta.bndp.hasOwnProperty('size'))) {
-          console.warn(`sqler-mdb: Unable to find bind property "size" to restrict results to an expected size of "${size}" for prepared statement "${
-            pso.name}" on SQL:\n${sql}`);
-        }
-        const rslts = await preparedStmtProcExec(pso, pso.conn, execMeta.bndp);
+        const isStream = opts.stream >= 0 && opts.type === 'READ';
+        let rslts = preparedStmtProcExec(pso, pso.conn, execMeta.bndp, isStream);
+        if (!isStream) rslts = await rslts;
         if (dlt.at.logger) {
-          dlt.at.logger(`sqler-mdb: Completed execution of prepared statement "${pso.name}"${dlt.at.debug ? ` for binds ${
-            Object.keys(execMeta.bndp)} on SQL\n${execMeta.sql}` : ''}`);
+          dlt.at.logger(`sqler-mdb: ${isStream ? 'Created readable stream' : 'Completed execution'} of prepared statement "${pso.name}"${
+            dlt.at.debug ? ` for binds ${Object.keys(execMeta.bndp)} on SQL\n${execMeta.sql}` : ''}`);
         }
         return rslts;
       } catch (err) {
@@ -496,25 +514,31 @@ function preparedStmtProc(pso) {
  * @param {InternalPreparedStatement} pso The prepared statement object that will be used to generate the stored procedure
  * @param {DBDriver.Connection} conn The connection
  * @param {Object} binds The binds
+ * @param {Boolean} [useQueryStream] 
  * @param {Boolean} [prepare] Truthy to prepare the satement before execution
- * @returns {Promise} The prepared statement procedure call promise
+ * @returns {(Stream.Readable | Promise)} The prepared statement procedure call result
  */
-function preparedStmtProcExec(pso, conn, binds, prepare) {
-  return conn.query(`CALL ${pso.procedure}('${prepare ? 'prepare_' : ''}execute', JSON_OBJECT(${
+function preparedStmtProcExec(pso, conn, binds, useQueryStream, prepare) {
+  const sql = `CALL ${pso.procedure}('${prepare ? 'prepare_' : ''}execute', JSON_OBJECT(${
     pso.bnames.map(name => `${conn.escape(name)},${conn.escape(binds[name])}`).join(',')
-  }))`);
+  }))`;
+  return useQueryStream ? conn.queryStream(sql, binds) : conn.query(sql, binds);
 }
 
 /**
  * Returns a label that contains connection details, transaction counts, etc.
  * @private
  * @param {MDBInternal} dlt The internal MariaDB/MySQL object instance
+ * @param {MDBExecOptions} [opts] Execution options that will be included in the staus label
+ * @param {MDBTransactionObject} [txo] An optional transactiopn to add to the status label
  * @returns {String} The status label
  */
-function statusLabel(dlt) {
+function statusLabel(dlt, opts, txo) {
   try {
-    return `uncommitted transactions: ${dlt.at.state.pending}${dlt.at.pool ? `, total connections: ${dlt.at.pool.totalConnections()}, active connections: ${
-      dlt.at.pool.activeConnections()}, idle connections: ${dlt.at.pool.idleConnections()}, queue size: ${dlt.at.pool.taskQueueSize()}` : ''}`;
+    return `(( ${opts ? `[ ${opts.name ? `name: ${opts.name}, ` : ''}type: ${opts.type} ]` : ''}[ uncommitted transactions: ${
+      dlt.at.state.pending}${dlt.at.pool ? `, total connections: ${dlt.at.pool.totalConnections()}, active connections: ${
+      dlt.at.pool.activeConnections()}, idle connections: ${dlt.at.pool.idleConnections()}, queue size: ${dlt.at.pool.taskQueueSize()}` : ''}${
+        txo ? ` - Transaction state: ${JSON.stringify(txo.tx.state)}` : ''} ))`;
   } catch (err) {
     if (dlt.at.errorLogger) {
       dlt.at.errorLogger('sqler-mdb: Failed to create status label', err);
@@ -526,56 +550,38 @@ function statusLabel(dlt) {
  * Creates a read stream that batches the read SQL executions
  * @private
  * @param {MDBInternal} dlt The internal MariaDB/MySQL object instance
- * @param {InternalExecMeta} [execMeta] The metadata that contains the SQL to execute and the binds parameters to use. Ignored when using a prepared statement.
+ * @param {String} sql The SQL to execute.
  * @param {MDBExecOptions} opts The execution options
+ * @param {typedefs.SQLERExecMeta} meta The SQL execution metadata
  * @param {MDBTransactionObject} [txo] The transaction object to use. When not specified, a connection will be established on the first write to the stream.
  * @param {typedefs.SQLERExecResults} rtn Where the _public_ prepared statement functions will be set (ignored when the read stream is not for a prepared
  * statement).
  * @returns {Stream.Readable} The created read stream
  */
-async function createReadStream(dlt, execMeta, opts, txo, rtn) {
+async function createReadStream(dlt, sql, opts, meta, txo, rtn) {
+  /** @type {Promise<DBDriver.Connection>} */
+  let connProm;
+  /** @type {InternalFlightRecorder[]} */
+  const recorders = [];
   /** @type {Stream.Readable} */
   let readable;
   if (opts.prepareStatement) {
-    /** @type {InternalFlightRecorder[]} */
-    const recorders = [];
-    readable = new Stream.Readable({
-      objectMode: true,
-      read: async (size) => {
-        const recordCount = size || opts.stream;
-        /** @type {InternalPreparedStatement} */
-        let pso;
-        try {
-          if (!dlt.at.stmts.has(meta.name)) {
-            pso = await prepared(dlt, sql, opts, meta, txo, rtn);
-            // ensure that the PS connection release is emitted on the readable
-            pso.on(typedefs.EVENT_STREAM_RELEASE, () => readable.emit(typedefs.EVENT_STREAM_RELEASE));
-          } else {
-            pso = dlt.at.stmts.get(meta.name);
-          }
-          const rslts = await pso.exec(null, recordCount);
-          if (Array.isArray(rslts)) this.push(...rslts);
-          else this.push(rslts);
-        } catch (err) {
-          recorders.push(errored(`sqler-mdb: Failed to execute readable stream for ${recordCount} records`, dlt, meta, err));
-          throw err;
-        }
-      }
-    });
-    dlt.at.track.readable(opts, readable);
+    const pso = await prepared(dlt, sql, opts, meta, txo, rtn);
+    pso.on(typedefs.EVENT_STREAM_RELEASE, () => readable && readable.emit(typedefs.EVENT_STREAM_RELEASE));
+    readable = await pso.exec();
   } else {
+    /** @type {InternalExecMeta} */
+    const execMeta = createExecMeta(dlt, sql, opts);
     /** @type {DBDriver.Connection} */
-    const conn = txo ? txo.conn : await dlt.at.pool.getConnection();
+    const conn = txo ? txo.conn : connProm ? await connProm : await (connProm = dlt.at.pool.getConnection());
     readable = conn.queryStream(execMeta.sql, execMeta.binds);
-    dlt.at.track.readable(opts, readable);
-    if (!txo) {
-      readable.on('close', async () => {
-        if (!conn) return;
-        await operation(dlt, 'release', false, conn, opts)();
-        readable.emit(typedefs.EVENT_STREAM_RELEASE);
-      });
-    }
   }
+  // dlt.at.track.readable(opts, readable);
+  readable.on('error', async (err) => {
+    if (err.sqlerMDB) return;
+    recorders.push(errored(`sqler-mdb: An error occurred during ${Stream.Readable.name} streaming for SQL:\n${sql}`, dlt, meta, err));
+  });
+  readable.on('close', closeStreamHandler(dlt, sql, opts, meta, txo, () => connProm, readable, recorders));
   return readable;
 }
 
@@ -592,25 +598,21 @@ async function createReadStream(dlt, execMeta, opts, txo, rtn) {
  * @returns {Stream.Writable} The created write stream
  */
 function createWriteStream(dlt, sql, opts, meta, txo, rtn) {
-  /** @type {DBDriver.Connection} */
-  let conn;
+  /** @type {Promise<DBDriver.Connection>} */
+  let connProm;
   /** @type {InternalFlightRecorder[]} */
   const recorders = [];
   const writable = dlt.at.track.writable(opts, async (batch) => {
-    /** @type {InternalPreparedStatement} */
-    let pso;
     try {
+      if (dlt.at.logger) {
+        dlt.at.logger(`sqler-mdb: Started ${Stream.Writable.name} stream execution for ${batch.length} batches ${statusLabel(dlt, opts, txo)}`);
+      }
       if (opts.prepareStatement) {
-        if (!dlt.at.stmts.has(meta.name)) {
-          pso = await prepared(dlt, sql, opts, meta, txo, rtn);
-          // ensure that the PS connection release is emitted on the writable
-          pso.on(typedefs.EVENT_STREAM_RELEASE, () => writable.emit(typedefs.EVENT_STREAM_RELEASE));
-        } else {
-          pso = dlt.at.stmts.get(meta.name);
-        }
+        const pso = await prepared(dlt, sql, opts, meta, txo, rtn);
         return await pso.batch(batch);
       }
-      conn = conn || (txo ? txo.conn : await dlt.at.pool.getConnection());
+      /** @type {DBDriver.Connection} */
+      const conn = txo ? txo.conn : connProm ? await connProm : await (connProm = dlt.at.pool.getConnection());
       // batch all the binds into a single exectuion for a performance gain
       // https://mariadb.com/kb/en/connector-nodejs-promise-api/#connectionbatchsql-values-promise
       /** @type {InternalExecMeta} */
@@ -622,25 +624,69 @@ function createWriteStream(dlt, sql, opts, meta, txo, rtn) {
         bindsArray[bi] = execMeta.binds;
         bi++;
       }
-      const rslts = await conn.batch(execMeta.sql, bindsArray);
+      let rslts = await conn.batch(execMeta.sql, bindsArray);
       if (dlt.at.logger) {
-        dlt.at.logger(`sqler-mdb: Completed execution of ${batch.length} batched write streams`);
+        dlt.at.logger(`sqler-mdb: Completed ${Stream.Writable.name} stream execution for ${batch.length} batches ${statusLabel(dlt, opts, txo)}`);
       }
       return rslts;
     } catch (err) {
-      recorders.push(errored(`sqler-mdb: Failed to execute writable stream batch for ${
-        batch ? batch.length : 'invalid batch'} on the following SQL:\n${sql}`, dlt, meta, err));
-      throw err;
+      err.batchSize = batch ? batch.length : 0;
+      writable.emit('error', err);
     }
   });
-  if (!txo && !opts.prepareStatement) {
-    writable.on('close' /* 'finish' */, async () => {
-      if (!conn) return;
-      await operation(dlt, 'release', false, conn, opts)();
-      writable.emit(typedefs.EVENT_STREAM_RELEASE);
-    });
-  }
+  writable.on('error', async (err) => {
+    if (err.sqlerMDB) return;
+    recorders.push(errored(`sqler-mdb: An error occurred during ${Stream.Writable.name} streaming for SQL:\n${sql}`, dlt, meta, err));
+  });
+  writable.on('close' /* 'finish' */, closeStreamHandler(dlt, sql, opts, meta, txo, () => connProm, writable, recorders));
   return writable;
+}
+
+/**
+ * Handles a `close` event on a stream by closing a connection (when passed), emitting the {@link typedefs.EVENT_STREAM_RELEASE} event and handling a transaction
+ * `commit` (when a {@link MDBTransactionObject} is passed).
+ * @private
+ * @param {MDBInternal} dlt The internal dialect object instance
+ * @param {String} sql The SQL to execute
+ * @param {MDBExecOptions} opts The execution options
+ * @param {typedefs.SQLERExecMeta} meta The SQL execution metadata
+ * @param {MDBTransactionObject} [txo] The transaction object to use. When not specified, a connection will be established on the first write to the stream.
+ * @param {Function} [getConn] An `async function()` to get the {@link DBDriver.Connection} that will be closed (ignored when a transaction is specified).
+ * @param {(Stream.Readable | Stream.Writable)} stream The stream where the `close` event will be emitted.
+ * @param {InternalFlightRecorder[]} recorders The flight recorders where the any errors will be recorded.
+ * @returns {Function} An `async function()` that handles the `close` event on the specified stream
+ */
+function closeStreamHandler(dlt, sql, opts, meta, txo, getConn, stream, recorders) {
+  const type = stream instanceof Stream.Readable ? Stream.Readable.name : stream instanceof Stream.Writable ? Stream.Writable.name : 'N/A';
+  let isCommitted;
+  return async () => {
+    try {
+      /** @type {DBDriver.Connection} */
+      const conn = typeof getConn === 'function' ? await getConn() : null;
+      if (conn) {
+        await operation(dlt, 'release', false, conn, opts)();
+        stream.emit(typedefs.EVENT_STREAM_RELEASE);
+      }
+      if (txo && opts.autoCommit && !recorders.length) {
+        await operation(dlt, 'commit', false, txo, opts, opts.prepareStatement ? 'unprepare' : null)();
+        isCommitted = true;
+        stream.emit(typedefs.EVENT_STREAM_COMMIT, txo.tx.id);
+      } else if (txo) {
+        txo.tx.state.pending++;
+        dlt.at.state.pending++;
+      }
+    } catch (err) {
+      recorders.push(errored(`sqler-mdb: Failed to handle ${type} stream close event for SQL:\n${sql}`, dlt, meta, err));
+      stream.emit('error', recorders[recorders.length - 1].error);
+    } finally {
+      if (!isCommitted && txo && opts.autoCommit && recorders.length) {
+        await finalize(recorders, dlt, async () => {
+          await operation(dlt, 'rollback', false, txo, opts, opts.prepareStatement ? 'unprepare' : null)();
+          stream.emit(typedefs.EVENT_STREAM_ROLLBACK, txo.tx.id);
+        });
+      }
+    }
+  };
 }
 
 /**
@@ -668,7 +714,7 @@ function errored(label, dlt, meta, error) {
 /**
  * Finally block handler
  * @private
- * @param {InternalFlightRecorder} [recorder] The flight recorder
+ * @param {(InternalFlightRecorder || InternalFlightRecorder[])} [recorder] The flight recorder
  * @param {MDBInternal} dlt The internal dialect object instance
  * @param {Function} [func] An `async function()` that will be invoked in a catch wrapper that will be consumed and recorded when a flight recorder is
  * provided
@@ -681,7 +727,11 @@ async function finalize(recorder, dlt, func, funcErrorProperty = 'releaseError')
     try {
       await func();
     } catch (err) {
-      if (recorder && recorder.error) recorder.error[funcErrorProperty] = err;
+      if (recorder) {
+        for (let rec of Array.isArray(recorder) ? recorder : [recorder]) {
+          if (rec.error) recorder.error[funcErrorProperty] = err;
+        }
+      }
     }
   }
 } 
