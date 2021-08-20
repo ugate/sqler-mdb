@@ -47,7 +47,7 @@ async function implicitTransactionUpdate(manager, connName, rtn, table1BindsArra
   // simple iterator over all the binds
   forEach('UPDATE', 'Implicit transaction', table1BindsArray, table2BindsArray, (idx, ti, ri, binds, nameProp) => {
 
-    // Example execution in parallel using an implicit transaction for
+    // Example concurrent execution using an implicit transaction for
     // each SQL execution (autoCommit = true is the default)
     rtn.txImpRslts[idx] = manager.db[connName].update[`table${ti + 1}`].rows({
       name: binds[nameProp], // execution name is optional
@@ -74,7 +74,7 @@ async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArra
     // simple iterator over all the binds
     forEach('UPDATE_TX', 'Explicit transaction', table1BindsArray, table2BindsArray, (idx, ti, ri, binds, nameProp) => {
 
-      // Example execution in parallel (same transacion)
+      // Example concurrent execution (same transacion)
       rtn.txExpRslts[idx] = manager.db[connName].update[`table${ti + 1}`].rows({
         name: binds[nameProp], // execution name is optional
         binds,
@@ -90,26 +90,28 @@ async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArra
     }
 
     // commit the transaction
-    await tx.commit();
+    await tx.commit(true); // true to release the connection back to the pool
   } catch (err) {
     if (tx) {
       // rollback the transaction
-      await tx.rollback();
+      await tx.rollback(true); // true to release the connection back to the pool
     }
     throw err;
   }
 }
 
 async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
+  // need to keep track of at least one result for each table so that unprepare can be called on each
+  // (could call unprepare using any of the returned execution results for each table)
+  let psRsltIndexTable1 = 0, psRsltIndexTable2;
   // don't exceed connection pool count
   rtn.psRslts = new Array(table1BindsArray.length + table2BindsArray.length);
-  let tbl2Idx;
   try {
 
     // simple iterator over all the binds
     forEach('UPDATE_PS', 'Prepred statement', table1BindsArray, table2BindsArray, (idx, ti, ri, binds, nameProp) => {
 
-      // Example execution in parallel (same transacion)
+      // Example concurrent execution (same transacion)
       rtn.psRslts[idx] = manager.db[connName].update[`table${ti + 1}`].rows({
         name: binds[nameProp], // execution name is optional
         // flag the SQL execution as a prepared statement
@@ -128,26 +130,23 @@ async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray,
         binds
       });
 
-      // just so we can ref result for unprepare on 2nd table
-      if (ti && !tbl2Idx) tbl2Idx = ti;
+      // need to keep track of at least one result for each table so that unprepare can be called on each
+      if (ti && !psRsltIndexTable2) psRsltIndexTable2 = ti;
 
     });
 
-    // wait for parallel executions to complete
+    // wait for concurrent executions to complete
     for (let i = 0; i < rtn.psRslts.length; i++) {
       rtn.psRslts[i] = await rtn.psRslts[i];
     }
   } finally {
-    // could call unprepare using any of the returned execution results (for each table)
-    for (let idx of [ 0, tbl2Idx /* 1st index for table 1 and 2 */ ]) {
-      if (rtn.psRslts[idx] && rtn.psRslts[idx].unprepare) {
-        // since prepareStatement = true, we need to close the statement
-        // and release the statement connection back to the pool
-        // (also drops the temporary stored procedure that executes the
-        // prepared statement)
-        await rtn.psRslts[idx].unprepare();
-      }
-    }
+    // since prepareStatement = true, we need to close the statement
+    // and release the prepared statement connection back to the pool
+    // (also drops the temporary stored procedure that executes the prepared statement)
+    const proms = [];
+    if (rtn.psRslts[psRsltIndexTable1]) proms.push(rtn.psRslts[psRsltIndexTable1].unprepare());
+    if (rtn.psRslts[psRsltIndexTable2]) proms.push(rtn.psRslts[psRsltIndexTable2].unprepare());
+    if (proms.length) await Promise.all(proms);
   }
 }
 
@@ -163,7 +162,7 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
     // simple iterator over all the binds
     forEach('UPDATE_PS_TX', `Prepred statement with txId ${tx.id}`, table1BindsArray, table2BindsArray, (idx, ti, ri, binds, nameProp) => {
 
-      // Example execution in parallel (same transacion)
+      // Example execution in concurrent (same transacion)
       rtn.txExpPsRslts[idx] = manager.db[connName].update[`table${ti + 1}`].rows({
         name: binds[nameProp], // execution name is optional
         autoCommit: false, // don't auto-commit after execution
@@ -182,19 +181,19 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
 
     });
 
-    // wait for parallel executions to complete
+    // wait for concurrent executions to complete
     for (let i = 0; i < rtn.txExpPsRslts.length; i++) {
       rtn.txExpPsRslts[i] = await rtn.txExpPsRslts[i];
     }
 
     // unprepare will be called when calling commit
     // (alt, could have called unprepare before commit)
-    await tx.commit();
+    await tx.commit(true); // true to release the connection back to the pool
   } catch (err) {
     if (tx) {
       // unprepare will be called when calling rollback
       // (alt, could have called unprepare before rollback)
-      await tx.rollback();
+      await tx.rollback(true); // true to release the connection back to the pool
     }
     throw err;
   }

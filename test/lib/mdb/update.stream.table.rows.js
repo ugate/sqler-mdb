@@ -56,6 +56,7 @@ async function implicitTransactionUpdate(manager, connName, rtn, table1BindsArra
   // simply rename all the bind names to reflect the action being performed
   nameAll('UPDATE_STREAM', 'Implicit transaction', table1BindsArray, table2BindsArray);
 
+  // loop through and perform the updates via the writable stream
   let ni = 0;
   const bindsArrays = [ table1BindsArray, table2BindsArray ];
   rtn.txImpRslts = new Array(bindsArrays.length);
@@ -94,6 +95,7 @@ async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArra
     // simply rename all the bind names to reflect the action being performed
     nameAll('UPDATE_STREAM_TX', 'Explicit transaction', table1BindsArray, table2BindsArray);
 
+    // loop through and perform the updates via the writable stream
     let ni = 0;
     const bindsArrays = [ table1BindsArray, table2BindsArray ];
     rtn.txExpRslts = new Array(bindsArrays.length);
@@ -133,23 +135,26 @@ async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArra
       ni++;
     }
 
-    await tx.commit(true);
+    await tx.commit(true); // true to release the connection back to the pool
   } catch (err) {
     if (tx) {
-      await tx.rollback(true);
+      await tx.rollback(true); // true to release the connection back to the pool
     }
     throw err;
   }
 }
 
 async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
+  // need to keep track of at least one result for each table so that unprepare can be called on each
+  // (could call unprepare using any of the returned stream results for each table)
+  let psRsltTable1, psRsltTable2;
   try {
     // simply rename all the bind names to reflect the action being performed
     nameAll('UPDATE_STREAM_PS', 'Prepared statement', table1BindsArray, table2BindsArray);
 
+    // loop through and perform the updates via the writable stream
     let ni = 0;
     const bindsArrays = [ table1BindsArray, table2BindsArray ];
-    // don't exceed connection pool count
     rtn.psRslts = new Array(bindsArrays.length);
     for (let bindsArray of bindsArrays) {
       // Example using an implicit transaction for each streamed (autoCommit = true is the default)
@@ -173,6 +178,13 @@ async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray,
         // no need to set execOpts.binds since they will be streamed from the update instead
       });
 
+      // need to keep track of at least one result for each table so that unprepare can be called on each
+      if (ni === 0 && !psRsltTable1) {
+        psRsltTable1 = rtn.psRslts[ni];
+      } else if (ni && !psRsltTable2) {
+        psRsltTable2 = rtn.psRslts[ni];
+      }
+
       // now that the write streams are ready and the read binds have been renamed,
       // we can cycle through the bind arrays and write them to the appropriate tables
       for (let writeStream of rtn.psRslts[ni].rows) {
@@ -188,14 +200,13 @@ async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray,
     }
     
   } finally {
-    // could call unprepare using any of the returned execution results
-    if (rtn.psRslts && rtn.psRslts[0] && rtn.psRslts[0].unprepare) {
-      // since prepareStatement = true, we need to close the statement
-      // and release the statement connection back to the pool
-      // (also drops the temporary stored procedure that executes the
-      // prepared statement)
-      await rtn.psRslts[0].unprepare();
-    }
+    // since prepareStatement = true, we need to close the statement
+    // and release the prepared statement connection back to the pool
+    // (also drops the temporary stored procedure that executes the prepared statement)
+    const proms = [];
+    if (psRsltTable1) proms.push(psRsltTable1.unprepare());
+    if (psRsltTable2) proms.push(psRsltTable2.unprepare());
+    if (proms.length) await Promise.all(proms);
   }
 }
 
@@ -209,9 +220,9 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
     // simply rename all the bind names to reflect the action being performed
     nameAll('UPDATE_STREAM_PS_TX', `Prepared statement with txId ${tx.id}`, table1BindsArray, table2BindsArray);
 
+    // loop through and perform the updates via the writable stream
     let ni = 0;
     const bindsArrays = [ table1BindsArray, table2BindsArray ];
-    // don't exceed connection pool count
     rtn.txExpPsRslts = new Array(bindsArrays.length);
     for (let bindsArray of bindsArrays) {
       // Example using an implicit transaction for each streamed (autoCommit = true is the default)
@@ -257,14 +268,14 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
       ni++;
     }
 
-    // unprepare will be called when calling commit
-    // (alt, could have called unprepare before commit)
-    await tx.commit(true);
+    // unprepare will be called on all prepared statements associated with the transaction when calling
+    // commit (alt, could have called unprepare before commit)
+    await tx.commit(true); // true to release the connection back to the pool
   } catch (err) {
     if (tx) {
-      // unprepare will be called when calling rollback
-      // (alt, could have called unprepare before rollback)
-      await tx.rollback(true);
+      // unprepare will be called on all prepared statements associated with the transaction when calling
+      // rollback (alt, could have called unprepare before rollback)
+      await tx.rollback(true); // true to release the connection back to the pool
     }
     throw err;
   }
