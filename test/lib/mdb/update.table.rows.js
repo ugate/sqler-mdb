@@ -41,7 +41,7 @@ module.exports = async function runExample(manager, connName) {
 };
 
 async function implicitTransactionUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
-  // don't exceed connection pool count
+  // returned results for both tables
   rtn.txImpRslts = new Array(table1BindsArray.length + table2BindsArray.length);
 
   // simple iterator over all the binds
@@ -63,7 +63,7 @@ async function implicitTransactionUpdate(manager, connName, rtn, table1BindsArra
 }
 
 async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
-  // don't exceed connection pool count
+  // returned results for both tables
   rtn.txExpRslts = new Array(table1BindsArray.length + table2BindsArray.length);
   /** @type {typedefs.SQLERTransaction} */
   let tx;
@@ -104,7 +104,7 @@ async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray,
   // need to keep track of at least one result for each table so that unprepare can be called on each
   // (could call unprepare using any of the returned execution results for each table)
   let psRsltIndexTable1 = 0, psRsltIndexTable2;
-  // don't exceed connection pool count
+  // returned results for both tables
   rtn.psRslts = new Array(table1BindsArray.length + table2BindsArray.length);
   try {
 
@@ -151,7 +151,7 @@ async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray,
 }
 
 async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
-  // don't exceed connection pool count
+  // returned results for both tables
   rtn.txExpPsRslts = new Array(table1BindsArray.length + table2BindsArray.length);
   /** @type {typedefs.SQLERTransaction} */
   let tx;

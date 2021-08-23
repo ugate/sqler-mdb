@@ -79,7 +79,7 @@ class MDBDialect {
     const dlt = internal(this), numSql = opts.numOfPreparedFuncs;
     /** @type {InternalFlightRecorder} */
     let recorder;
-    let conn, error;
+    let conn;
     try {
       dlt.at.pool = dlt.at.driver.createPool(dlt.at.opts.pool);
       if (dlt.at.logger) {
@@ -92,7 +92,6 @@ class MDBDialect {
       return dlt.at.pool;
     } catch (err) {
       recorder = errored(`sqler-mdb: connection pool "${dlt.at.opts.id}" could not be created`, dlt, null, err);
-      error = err;
       const msg = `sqler-mdb: connection pool "${dlt.at.opts.id}" could not be created`;
       if (dlt.at.errorLogger) dlt.at.errorLogger(`${msg} (passwords are omitted from error) ${JSON.stringify(err, null, ' ')}`);
       const pconf = Object.assign({}, dlt.at.opts.pool);
@@ -333,7 +332,7 @@ function operation(dlt, name, reset, txoOrConn, opts, preop) {
         return Promise.reject(new Error(`"${name}" already called on transaction "${txo.tx.id}"`));
       }
       if (dlt.at.logger) {
-        dlt.at.logger(`sqler-mdb: Performing ${name} on connection pool "${dlt.at.opts.id}"${statusLabel(dlt, opts)}`);
+        dlt.at.logger(`sqler-mdb: Performing ${name} on connection pool "${dlt.at.opts.id}" ${statusLabel(dlt, opts)}`);
       }
       await conn[name]();
       if (txo) {
@@ -357,7 +356,7 @@ function operation(dlt, name, reset, txoOrConn, opts, preop) {
         opts ? JSON.stringify(Object.keys(opts)) : 'N/A'}`, dlt, null, err);
       throw err;
     } finally {
-      if ((recorder && recorder.error) || (!txo && conn && name !== 'end' && name !== 'release')) {
+      if (name !== 'end' && name !== 'release' && ((recorder && recorder.error) || (!txo && conn))) {
         await finalize(recorder, dlt, () => Promise.resolve(conn.release()));
       }
     }
@@ -537,7 +536,7 @@ function statusLabel(dlt, opts, txo) {
   try {
     return `(( ${opts ? `[ ${opts.name ? `name: ${opts.name}, ` : ''}type: ${opts.type} ]` : ''}[ uncommitted transactions: ${
       dlt.at.state.pending}${dlt.at.pool ? `, total connections: ${dlt.at.pool.totalConnections()}, active connections: ${
-      dlt.at.pool.activeConnections()}, idle connections: ${dlt.at.pool.idleConnections()}, queue size: ${dlt.at.pool.taskQueueSize()}` : ''}${
+      dlt.at.pool.activeConnections()}, idle connections: ${dlt.at.pool.idleConnections()}, queue size: ${dlt.at.pool.taskQueueSize()}` : ''} ]${
         txo ? ` - Transaction state: ${JSON.stringify(txo.tx.state)}` : ''} ))`;
   } catch (err) {
     if (dlt.at.errorLogger) {
