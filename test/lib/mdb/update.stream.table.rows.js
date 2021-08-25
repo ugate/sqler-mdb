@@ -114,16 +114,6 @@ async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArra
       // now that the write streams are ready and the read binds have been renamed,
       // we can cycle through the bind arrays and write them to the appropriate tables
       for (let writeStream of rtn.txExpRslts[ni].rows) {
-        // writeStream.on('end', async () => {console.log('WRITE END!!!!!!!!!!!!!!!!!!!!!', tx)
-        //   if (tx.state.isReleased) return;
-        //   const isReleaseConn = (tx.state.committed + tx.state.rolledback) === (bindsArrays.length - 1);
-        //   //await tx.commit(isReleaseConn);
-        // })
-        // writeStream.on('error', async (err) => {console.log('WRITE ERROR!!!!!!!!!!!!!!!!!!!!!', tx)
-        //   if (tx.state.isReleased) return;
-        //   const isReleaseConn = (tx.state.committed + tx.state.rolledback) === (bindsArrays.length - 1);
-        //   //await tx.rollback(isReleaseConn);
-        // });
         await pipeline(
           // here we're just using some static values for illustration purposes, but they can come from a
           // any readable stream source like a file, database, etc. as long as they are "transformed"
@@ -247,16 +237,6 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
       // now that the write streams are ready and the read binds have been renamed,
       // we can cycle through the bind arrays and write them to the appropriate tables
       for (let writeStream of rtn.txExpPsRslts[ni].rows) {
-        // writeStream.on('end', async () => {console.log('WRITE END!!!!!!!!!!!!!!!!!!!!!', tx)
-        //   if (tx.state.isReleased) return;
-        //   const isReleaseConn = (tx.state.committed + tx.state.rolledback) === (bindsArrays.length - 1);
-        //   //await tx.commit(isReleaseConn);
-        // })
-        // writeStream.on('error', async (err) => {console.log('WRITE ERROR!!!!!!!!!!!!!!!!!!!!!', tx)
-        //   if (tx.state.isReleased) return;
-        //   const isReleaseConn = (tx.state.committed + tx.state.rolledback) === (bindsArrays.length - 1);
-        //   //await tx.rollback(isReleaseConn);
-        // });
         await pipeline(
           // here we're just using some static values for illustration purposes, but they can come from a
           // any readable stream source like a file, database, etc. as long as they are "transformed"
