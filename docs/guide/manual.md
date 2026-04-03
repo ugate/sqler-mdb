@@ -1,4 +1,4 @@
-# 💡 [MariaDB](https://mariadb.org) and/or [MySQL](https://www.mysql.com) Examples:
+# 💡 [MariaDB](https://mariadb.org) and/or [MySQL](https://www.mysql.com)
 There are a few additional [execution driverOptions](https://example.com/global.html#MDBExecOptions) that are MySQL/MariaDB specific.
 
 ## Prepared Statements {#ps}
