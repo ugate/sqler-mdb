@@ -10,10 +10,10 @@
     "test": "lab -v -P test -c --coverage-exclude lib -t 85 -e prod",
     "test-debug": "lab --inspect-brk -v -P test -c --coverage-exclude lib -t 85 -e prod",
     "test-crud": "env NODE_ENV=test node test/lib/main.js crud",
-    "pretest-docker": "npm install",
-    "test-docker": "node test/server.js",
-    "jsdocp": "jsdocp ./jsdocp/jsdoc.json",
-    "jsdocp-deploy": "jsdocp -D ./jsdocp/jsdoc.json"
+    "docs:api": "rm -rf docs/api docs/api__index__.md docs/apitypedefs.md && node ./docs/generate-api.mjs",
+    "docs:dev": "npm run docs:api && vitepress dev docs",
+    "docs:build": "npm run docs:api && vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "repository": {
     "type": "git",
@@ -33,17 +33,13 @@
   },
   "homepage": "https://ugate.github.io/sqler-mdb",
   "devDependencies": {
-    "@hapi/code": "^8.0.2",
-    "@hapi/lab": "^24.1.1",
-    "@ugate/labrat": "^2.1.0",
     "image-type": "^4.1.0",
-    "jsdoc": "^3.6.6",
-    "jsdocp": "^1.3.0",
     "mariadb": "^2.5.3",
-    "minami": "^1.2.3",
     "moment-db": "^2.0.0",
     "read-chunk": "^3.2.0",
-    "sqler": "^9.0.0"
+    "sqler": "^9.0.0",
+    "vitepress": "^1.6.4",
+    "vitepress-jsdoc": "^1.0.4"
   },
   "files": [
     "/index.js",

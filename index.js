@@ -901,3 +901,7 @@ let internal = function(dialect) {
  * @property {DBDriver.Connection} [conn] A connection that will be `released` when an error exists
  * @private
  */
+
+/**
+ * @import { typedefs } from 'sqler'
+ */
