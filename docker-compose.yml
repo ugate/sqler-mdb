@@ -17,11 +17,16 @@ services:
       <<: *env-vars
     networks:
       - app
+    # healthcheck:
+    #   # test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", '-p$$MYSQL_ROOT_PASSWORD' ]
+    #   test: out=$$(mysqladmin ping -h localhost -P 3306 -u root --password=$$MYSQL_ROOT_PASSWORD 2>&1); echo $$out | grep 'mysqld is alive' || { echo $$out; exit 1; }
+    #   timeout: 20s
+    #   retries: 10
     healthcheck:
-      # test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", '-p$$MYSQL_ROOT_PASSWORD' ]
-      test: out=$$(mysqladmin ping -h localhost -P 3306 -u root --password=$$MYSQL_ROOT_PASSWORD 2>&1); echo $$out | grep 'mysqld is alive' || { echo $$out; exit 1; }
-      timeout: 20s
-      retries: 10
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     ports:
       - 3306:3306
   # NodeJS for sqler dialect testing
