@@ -777,10 +777,9 @@ let internal = function(dialect) {
 
 /**
  * MariaDB + MySQL specific extension of the {@link SQLERConnectionOptions} from the [`sqler`](https://ugate.github.io/sqler/) module.
- * @typedef {Object} MDBConnectionOptionsType
+ * @typedef {typedefs.SQLERConnectionOptions} MDBConnectionOptions
  * @property {MDBConnectionDriverOptions} driverOptions The `mariadb` (w/MySQL support) module specific options. __Both `connection` and `pool` will be merged
  * when generating the connection pool.__
- * @typedef {typedefs.SQLERConnectionOptions & MDBConnectionOptionsType} MDBConnectionOptions
  */
 
 /**
@@ -806,9 +805,8 @@ let internal = function(dialect) {
  * contains an object it will be _interpolated_ for property values on the `mariadb` module.
  * For example, `binds.name = '${SOME_MARIADB_CONSTANT}'` will be interpolated as
  * `binds.name = mariadb.SOME_MARIADB_CONSTANT`.
- * @typedef {Object} MDBExecOptionsType
+ * @typedef {typedefs.SQLERExecOptions} MDBExecOptions
  * @property {MDBExecDriverOptions} [driverOptions] The `mariadb` module specific options.
- * @typedef {typedefs.SQLERExecOptions & MDBExecOptionsType} MDBExecOptions
  */
 
 /**
@@ -875,7 +873,7 @@ let internal = function(dialect) {
 
 /**
  * Prepared statement
- * @typedef {Object} InternalPreparedStatementType
+ * @typedef {EventEmitter} InternalPreparedStatement
  * @property {String} name The prepared statement name
  * @property {String} shortName The short name
  * @property {String} procedure The procedure name that the prepared statement will be stored as
@@ -891,7 +889,6 @@ let internal = function(dialect) {
  * @property {InternalPreparedStatementExec} exec The function that executes the prepared statement SQL and returns the results
  * @property {InternalPreparedStatementBatch} batch The function that executes a batch of prepared statement SQL and returns the results
  * @property {Function} unprepare A no-argument _async_ function that unprepares the outstanding prepared statement
- * @typedef {EventEmitter & InternalPreparedStatementType} InternalPreparedStatement
  * @private
  */
 
