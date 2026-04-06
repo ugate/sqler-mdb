@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitepress';
+import apiSidebar from './api-sidebar.mjs';
 
 export default defineConfig({
  lang: 'en-US',

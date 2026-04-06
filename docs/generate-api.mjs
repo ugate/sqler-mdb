@@ -262,6 +262,20 @@ async function writeApiIndex() {
   await fs.writeFile(apiIndex, lines.join('\n'), 'utf8');
 }
 
+async function writeApiSidebar() {
+  const items = await getPublicApiItems();
+  const out = path.join(docsDir, '.vitepress', 'api-sidebar.mjs');
+  const content = `export default [
+  {
+    text: 'API',
+    items: ${JSON.stringify(items, null, 4)}
+  }
+];
+`;
+  await ensureDir(path.dirname(out));
+  await fs.writeFile(out, content, 'utf8');
+}
+
 async function normalizeOutput() {
   await ensureDir(path.join(apiDir, 'lib'));
 
@@ -278,6 +292,7 @@ async function normalizeOutput() {
   await rmrf(path.join(apiDir, '__index__.md'));
 
   await writeApiIndex();
+  await writeApiSidebar();
 }
 
 function normalizeGuideLinks(md, relPath) {
