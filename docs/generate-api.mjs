@@ -8,6 +8,14 @@ const stageSource = path.join(stageRoot, 'src');
 const docsDir = path.join(root, 'docs');
 const apiDir = path.join(docsDir, 'api');
 
+const SQLER_API_BASE = 'https://ugate.github.io/sqler/api';
+const SQLER_API_MANAGER = `${SQLER_API_BASE}/manager#manager`;
+const SQLER_API_DIALECT = `${SQLER_API_BASE}/lib/dialect#dialect`;
+const SQLER_API_TYPEDEFS = `${SQLER_API_BASE}/typedefs`;
+const SQLER_API_SQLER_PRIVATE_OPTIONS = `${SQLER_API_TYPEDEFS}#typedefs-sqlerprivateoptions-object`;
+const SQLER_API_SQLER_CONNECTION_OPTIONS = `${SQLER_API_TYPEDEFS}#typedefs-sqlerconnectionoptions-object`;
+const SQLER_API_SQLER_EXEC_OPTIONS = `${SQLER_API_TYPEDEFS}#typedefs-sqlerexecoptions-object`;
+
 async function rmrf(target) {
   await fs.rm(target, { recursive: true, force: true });
 }
@@ -129,15 +137,27 @@ function knownSymbolTarget(symbol) {
       return 'https://nodejs.org/api/stream.html#stream_class_stream_readable';
     case 'Stream.Writable':
       return 'https://nodejs.org/api/stream.html#stream_class_stream_writable';
+    case 'Manager':
+      return SQLER_API_MANAGER;
+    case 'Dialect':
+      return SQLER_API_DIALECT;
+    case 'SQLERPrivateOptions':
+      return SQLER_API_SQLER_PRIVATE_OPTIONS;
+    case 'SQLERConnectionOptions':
+      return SQLER_API_SQLER_CONNECTION_OPTIONS;
+    case 'SQLERExecOptions':
+      return SQLER_API_SQLER_EXEC_OPTIONS;
     default:
       break;
   }
 
-  if (symbol.startsWith('Manager.')) return path.join(apiDir, 'manager.md');
-  if (symbol.startsWith('Dialect.')) return path.join(apiDir, 'lib', 'dialect.md');
-  if (symbol.startsWith('SQLS.')) return path.join(apiDir, 'lib', 'sqls.md');
-  if (symbol.startsWith('DBS.')) return path.join(apiDir, 'lib', 'dbs.md');
-  if (symbol.startsWith('Utils.')) return path.join(apiDir, 'lib', 'utils.md');
+  if (symbol.startsWith('Manager.')) return `${SQLER_API_BASE}/manager`;
+  if (symbol.startsWith('Dialect.')) return `${SQLER_API_BASE}/lib/dialect`;
+  if (symbol.startsWith('SQLER')) return SQLER_API_TYPEDEFS;
+  if (symbol.startsWith('SQLS.')) return `${SQLER_API_BASE}/lib/sqls`;
+  if (symbol.startsWith('DBS.')) return `${SQLER_API_BASE}/lib/dbs`;
+  if (symbol.startsWith('Utils.')) return `${SQLER_API_BASE}/lib/utils`;
+
   return null;
 }
 
@@ -195,12 +215,12 @@ async function writeApiIndex() {
     '',
     'Generated API pages:',
     '',
-    '- [manager](/api/manager)',
-    '- [typedefs](/api/typedefs)',
-    '- [lib/dbs](/api/lib/dbs)',
-    '- [lib/dialect](/api/lib/dialect)',
-    '- [lib/sqls](/api/lib/sqls)',
-    '- [lib/utils](/api/lib/utils)',
+    '- [sqler-mdb manager](/api/manager)',
+    '- [sqler typedefs](' + SQLER_API_TYPEDEFS + ')',
+    // '- [sqler lib/dbs](' + SQLER_API_BASE + '/lib/dbs)',
+    '- [sqler lib/dialect](' + SQLER_API_BASE + '/lib/dialect)',
+    // '- [sqler lib/sqls](' + SQLER_API_BASE + '/lib/sqls)',
+    // '- [sqler lib/utils](' + SQLER_API_BASE + '/lib/utils)',
     ''
   ];
   await ensureDir(path.dirname(apiIndex));
@@ -212,12 +232,7 @@ async function normalizeOutput() {
 
   const moves = [
     ['docs/api__index__.md', 'docs/api/manager.md'],
-    ['docs/api/__index__.md', 'docs/api/manager.md'],
-    ['docs/apitypedefs.md', 'docs/api/typedefs.md'],
-    ['docs/api/libdbs.md', 'docs/api/lib/dbs.md'],
-    ['docs/api/libdialect.md', 'docs/api/lib/dialect.md'],
-    ['docs/api/libsqls.md', 'docs/api/lib/sqls.md'],
-    ['docs/api/libutils.md', 'docs/api/lib/utils.md']
+    ['docs/api/__index__.md', 'docs/api/manager.md']
   ];
 
   for (const [fromRel, toRel] of moves) {
@@ -232,7 +247,6 @@ async function normalizeOutput() {
 
 function normalizeGuideLinks(md, relPath) {
   if (relPath === 'guide/manual.md') {
-    md = md.replace(/\]\(\.\/typedefs\)/g, '](../api/typedefs)');
     md = md.replace(/\]\(\.\/global\)/g, '](../api/index)');
     md = md.replace(/\]\(\.\/index\)/g, '](/)');
   }
