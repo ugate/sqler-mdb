@@ -2,52 +2,101 @@
 
 process.env.UV_THREADPOOL_SIZE = 10;
 
+const test = require('node:test');
+const assert = require('node:assert/strict');
 const Tester = require('./lib/main');
-const { Labrat } = require('@ugate/labrat');
-const { expect } = require('@hapi/code');
-const Lab = require('@hapi/lab');
-const lab = Lab.script();
-exports.lab = lab;
-// ESM uncomment the following lines...
-// TODO : import * as Lab from '@hapi/lab';
-// TODO : import * as Tester from './lib/main.mjs';
-// TODO : import { Labrat } from '@ugate/labrat';
-// TODO : import { expect } from '@hapi/code';
-// TODO : export * as lab from lab;
 
 const TEST_TKO = 3000;
 const TEST_LONG_TKO = 7000;
-const plan = `MySQL DB Manager`;
+const plan = 'MySQL DB Manager';
 
-// node test/lib/main.js someTestFunction -NODE_ENV=test
+async function expectRejects(fn, label) {
+  await assert.rejects(async () => {
+    await fn();
+  }, undefined, label);
+}
 
-// "node_modules/.bin/lab" test/main.test.js -v
-// "node_modules/.bin/lab" test/main.test.js -vi 1
+test(plan, async (t) => {
+  if (Tester.before) await Tester.before();
 
-lab.experiment(plan, () => {
-  
-  if (Tester.before) lab.before(Tester.before);
-  if (Tester.after) lab.after(Tester.after);
-  if (Tester.beforeEach) lab.beforeEach(Tester.beforeEach);
-  if (Tester.afterEach) lab.afterEach(Tester.afterEach);
+  t.after(async () => {
+    if (Tester.after) await Tester.after();
+  });
 
-  lab.test(`${plan}: Connection Failure`, { timeout: TEST_LONG_TKO }, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'init throw' }, Tester.initThrow));
-  lab.test(`${plan}: No Pool`, { timeout: TEST_TKO }, Tester.poolNone);
-  lab.test(`${plan}: Pool Property Defaults`, { timeout: TEST_TKO }, Tester.poolPropSwap);
-  lab.test(`${plan}: Missing Driver Options`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'no driver options throw' }, Tester.driverOptionsNoneThrow));
-  lab.test(`${plan}: Driver Options No Pool/Connection`, { timeout: TEST_TKO }, Tester.driverOptionsPoolConnNone);
-  lab.test(`${plan}: Driver Options Pool or Connection`, { timeout: TEST_TKO }, Tester.driverOptionsPoolConnSwap);
-  lab.test(`${plan}: Driver Options Named or Unnamed Placeholders`, { timeout: TEST_TKO }, Tester.driverOptionsNamedPlaceholdersSwap);
-  lab.test(`${plan}: Host and Port Defaults`, { timeout: TEST_TKO }, Tester.hostPortSwap);
-  lab.test(`${plan}: Multiple connections`, { timeout: TEST_TKO }, Tester.multipleConnections);
-  lab.test(`${plan}: Close before init`, { timeout: TEST_TKO }, Tester.closeBeforeInit);
+  if (Tester.beforeEach || Tester.afterEach) {
+    t.beforeEach(async () => {
+      if (Tester.beforeEach) await Tester.beforeEach();
+    });
+    t.afterEach(async () => {
+      if (Tester.afterEach) await Tester.afterEach();
+    });
+  }
 
-  lab.test(`${plan}: CRUD`, { timeout: TEST_TKO }, Tester.crud);
-  lab.test(`${plan}: CRUD Streaming`, { timeout: TEST_TKO }, Tester.crudStream);
-  lab.test(`${plan}: CRUD Streaming Errors`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'CRUD streaming throw' }, Tester.crudStreamThrow));
-  lab.test(`${plan}: Execution Driver Options (Alternatives)`, { timeout: TEST_TKO }, Tester.execDriverOptionsAlt);
-  lab.test(`${plan}: Invalid SQL`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'invalid SQL throw' }, Tester.sqlInvalidThrow));
-  lab.test(`${plan}: Invalid bind parameter`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'invalid bind param throw' }, Tester.bindsInvalidThrow));
-  lab.test(`${plan}: Invalid Prepared Statement (Missing Database Name)`, Labrat.expectFailure('onUnhandledRejection', { expect, label: 'missing DB name throw' },
-    Tester.preparedStatementInvalidThrow));
+  await t.test('Connection Failure', { timeout: TEST_LONG_TKO }, async () => {
+    await expectRejects(Tester.initThrow, 'init throw');
+  });
+
+  await t.test('No Pool', { timeout: TEST_TKO }, async () => {
+    await Tester.poolNone();
+  });
+
+  await t.test('Pool Property Defaults', { timeout: TEST_TKO }, async () => {
+    await Tester.poolPropSwap();
+  });
+
+  await t.test('Missing Driver Options', async () => {
+    await expectRejects(Tester.driverOptionsNoneThrow, 'no driver options throw');
+  });
+
+  await t.test('Driver Options No Pool/Connection', { timeout: TEST_TKO }, async () => {
+    await Tester.driverOptionsPoolConnNone();
+  });
+
+  await t.test('Driver Options Pool or Connection', { timeout: TEST_TKO }, async () => {
+    await Tester.driverOptionsPoolConnSwap();
+  });
+
+  await t.test('Driver Options Named or Unnamed Placeholders', { timeout: TEST_TKO }, async () => {
+    await Tester.driverOptionsNamedPlaceholdersSwap();
+  });
+
+  await t.test('Host and Port Defaults', { timeout: TEST_TKO }, async () => {
+    await Tester.hostPortSwap();
+  });
+
+  await t.test('Multiple connections', { timeout: TEST_TKO }, async () => {
+    await Tester.multipleConnections();
+  });
+
+  await t.test('Close before init', { timeout: TEST_TKO }, async () => {
+    await Tester.closeBeforeInit();
+  });
+
+  await t.test('CRUD', { timeout: TEST_TKO }, async () => {
+    await Tester.crud();
+  });
+
+  await t.test('CRUD Streaming', { timeout: TEST_TKO }, async () => {
+    await Tester.crudStream();
+  });
+
+  await t.test('CRUD Streaming Errors', async () => {
+    await expectRejects(Tester.crudStreamThrow, 'CRUD streaming throw');
+  });
+
+  await t.test('Execution Driver Options (Alternatives)', { timeout: TEST_TKO }, async () => {
+    await Tester.execDriverOptionsAlt();
+  });
+
+  await t.test('Invalid SQL', async () => {
+    await expectRejects(Tester.sqlInvalidThrow, 'invalid SQL throw');
+  });
+
+  await t.test('Invalid bind parameter', async () => {
+    await expectRejects(Tester.bindsInvalidThrow, 'invalid bind param throw');
+  });
+
+  await t.test('Invalid Prepared Statement (Missing Database Name)', async () => {
+    await expectRejects(Tester.preparedStatementInvalidThrow, 'missing DB name throw');
+  });
 });

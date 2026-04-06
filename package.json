@@ -7,13 +7,16 @@
     "node": ">=12"
   },
   "scripts": {
-    "test": "lab -v -P test -c --coverage-exclude lib -t 85 -e prod",
-    "test-debug": "lab --inspect-brk -v -P test -c --coverage-exclude lib -t 85 -e prod",
-    "test-crud": "env NODE_ENV=test node test/lib/main.js crud",
+    "testOLD": "lab -v -P test -c --coverage-exclude lib -t 85 -e prod",
+    "testOLD-debug": "lab --inspect-brk -v -P test -c --coverage-exclude lib -t 85 -e prod",
+    "testOLD-crud": "env NODE_ENV=test node test/lib/main.js crud",
+    "test": "node --test test/main.test.js",
+    "test-debug": "node --inspect-brk --test test/main.test.js",
+    "test-crud": "NODE_ENV=test node --test --test-name-pattern='CRUD$' test/main.test.js",
     "docs:api": "rm -rf docs/api docs/api__index__.md docs/apitypedefs.md && node ./docs/generate-api.mjs",
-    "docs:dev": "npm run docs:api && vitepress dev docs",
-    "docs:build": "npm run docs:api && vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:dev": "npm run docs:api && vitepress dev",
+    "docs:build": "npm run docs:api && vitepress build",
+    "docs:preview": "vitepress preview"
   },
   "repository": {
     "type": "git",

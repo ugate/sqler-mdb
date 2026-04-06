@@ -1,7 +1,7 @@
 'use strict';
 
 // TODO : ESM comment the following lines...
-const { Labrat, LOGGER } = require('@ugate/labrat');
+const assert = require('node:assert/strict');
 const { Manager } = require('sqler');
 const typedefs = require('sqler/typedefs');
 const Dialect = require('../../index');
@@ -9,16 +9,11 @@ const Path = require('path');
 const Fs = require('fs');
 const Os = require('os');
 const Stream = require('stream');
-const { expect } = require('@hapi/code');
 const readChunk = require('read-chunk');
 const imageType = require('image-type');
-// TODO : import { Labrat, LOGGER } from '@ugate/labrat';
-// TODO : import { Manager } from 'sqler.mjs';
-// TODO : import * as Fs from 'fs';
-// TODO : import * as Os from 'os';
-// TODO : import { expect } from '@hapi/code';
-// TODO : import { readChunkSync } from 'read-chunk'; // version >= 4.0.0
-// TODO : import * as imageType from 'imageType';
+
+const LOGGER = console;
+const header = () => {};
 
 const CONF_SUFFIX_VAR = 'SQLER_CONF_FILE_SUFFIX';
 const test = {
@@ -40,7 +35,7 @@ class Tester {
    */
   static async before() {
     test.suffix = CONF_SUFFIX_VAR in process.env;
-    Labrat.header(`${test.vendor}: Creating test tables (if any)${test.suffix ? ` ${CONF_SUFFIX_VAR}=${test.suffix}` : ''}`);
+    header(`${test.vendor}: Creating test tables (if any)${test.suffix ? ` ${CONF_SUFFIX_VAR}=${test.suffix}` : ''}`);
     
     const conf = getConf();
     test.cache = null;
@@ -63,10 +58,10 @@ class Tester {
    */
   static async after() {
     if (!test.created) {
-      Labrat.header(`${test.vendor}: Skipping dropping of test tables/database`);
+      header(`${test.vendor}: Skipping dropping of test tables/database`);
       return;
     }
-    Labrat.header(`${test.vendor}: Dropping test tables/database (if any)`);
+    header(`${test.vendor}: Dropping test tables/database (if any)`);
     
     const conf = getConf();
     test.cache = null;
@@ -385,7 +380,7 @@ function getConf(overrides) {
  * @returns {Array} All of the CRUD results
  */
 async function crud(type, count = 0) {
-  Labrat.header(`${test.vendor}: Running CRUD tests`, 'info');
+  header(`${test.vendor}: Running CRUD tests`, 'info');
   const rslts = new Array(7);
   const isStream = type === 'stream';
   const streamClassRead = isStream ? Stream.Readable : null;
@@ -433,7 +428,7 @@ async function crud(type, count = 0) {
   crudly(state, { label: `delete read${typd}`, streamClass: streamClassRead, count: 0 }, rslts[rslti]);
 
   if (LOGGER.debug) LOGGER.debug(`CRUD${type ? ` ${type}` : ''} ${test.vendor} execution results:`, ...rslts);
-  Labrat.header(`${test.vendor}: Completed CRUD${type ? ` ${type}` : ''} tests`, 'info');
+  header(`${test.vendor}: Completed CRUD${type ? ` ${type}` : ''} tests`, 'info');
   return rslts;
 }
 
@@ -462,47 +457,51 @@ function getCrudOp(name, vendor, setupKey) {
  * @param {typedefs.SQLERExecResults} rslt The execution results
  */
 function crudly(state, expectOpts, rslt) {
-  if (!rslt.rows) return;
-  expectOpts.count = expectOpts.hasOwnProperty('count') ? expectOpts.count : 0;
-  expect(rslt.rows, `CRUD ${expectOpts.label} rows`).array();
-  if (!expectOpts.label.includes('read')) return;
-  expect(rslt.rows, `CRUD ${expectOpts.label} rows.length`).length(expectOpts.streamClass ? 1 : expectOpts.count);
-  let updated;
-  const expectRow = (row) => {
-    expect(row, `CRUD ${expectOpts.label} row`).object();
-    if (expectOpts.nameIncl) expect(row.name, `CRUD ${expectOpts.label} row.name`).includes(expectOpts.nameIncl);
-    updated = row.updated && expectOpts.streamClass ? new Date(row.updated) /* coming from JSON file */ : row.updated;
-    expect(updated, `CRUD ${expectOpts.label} row.updated`).date();
-    if (state && state.lastUpdated) expect(updated, `CRUD ${expectOpts.label} row.updated > lastUpdated`).greaterThan(state.lastUpdated);
-    // expect binary report image
-    if (row.report) {
-      expect(row.report, `CRUD ${expectOpts.label} row.report`).to.be.buffer();
-      if (row.reportPath) {
-        const reportBuffer = readChunk.sync(row.reportPath, 0, 12);
-        const reportType = imageType(reportBuffer);
-        expect(reportType, `CRUD ${expectOpts.label} row.report Image Type`).to.be.object();
-        expect(reportType.mime, `CRUD ${expectOpts.label} row.report Image Mime-Type`).to.equal('image/png');
-      }
-    }
-  };
-  let rows;
-  if (expectOpts.streamClass) {
-    // should be set by the executing script
-    expect(rslt.jsonFile, `CRUD ${expectOpts.label} jsonFile`).not.empty();
-    rows = JSON.parse(Fs.readFileSync(rslt.jsonFile, { encoding: 'utf-8' }));
-    expect(rows, `CRUD ${expectOpts.label} jsonFile rows`).array();
-    expect(rows, `CRUD ${expectOpts.label} jsonFile rows.length`).length(expectOpts.count);
-    for (let row of rslt.rows) {
-      expect(row, `CRUD ${expectOpts.label} class`).instanceOf(expectOpts.streamClass);
-      // row.on(typedefs.EVENT_STREAM_RELEASE, () => expect('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@2'));
-    }
-  } else {
-    rows = rslt.rows;
-  }
-  for (let row of rows) {
-    expectRow(row);
-  }
-  if (state) state.lastUpdated = updated;
+	if (!rslt.rows) return;
+	expectOpts.count = Object.prototype.hasOwnProperty.call(expectOpts, 'count') ? expectOpts.count : 0;
+	assert.ok(Array.isArray(rslt.rows), `CRUD ${expectOpts.label} rows must be an array`);
+	if (!expectOpts.label.includes('read')) return;
+	assert.equal(rslt.rows.length, expectOpts.streamClass ? 1 : expectOpts.count, `CRUD ${expectOpts.label} rows.length`);
+	let updated;
+	const expectRow = (row) => {
+		assert.ok(row && typeof row === 'object', `CRUD ${expectOpts.label} row must be an object`);
+		if (expectOpts.nameIncl) {
+			assert.ok(
+				typeof row.name === 'string' && row.name.includes(expectOpts.nameIncl),
+				`CRUD ${expectOpts.label} row.name must include ${expectOpts.nameIncl}`
+			);
+		}
+		updated = row.updated && expectOpts.streamClass ? new Date(row.updated) : row.updated;
+		assert.ok(updated instanceof Date && !Number.isNaN(updated.getTime()), `CRUD ${expectOpts.label} row.updated must be a valid date`);
+		if (state && state.lastUpdated) {
+			assert.ok(updated > state.lastUpdated, `CRUD ${expectOpts.label} row.updated must be greater than lastUpdated`);
+		}
+		if (row.report) {
+			assert.ok(Buffer.isBuffer(row.report), `CRUD ${expectOpts.label} row.report must be a buffer`);
+			if (row.reportPath) {
+				const reportBuffer = readChunk.sync(row.reportPath, 0, 12);
+				const reportType = imageType(reportBuffer);
+				assert.ok(reportType && typeof reportType === 'object', `CRUD ${expectOpts.label} row.report Image Type must be an object`);
+				assert.equal(reportType.mime, 'image/png', `CRUD ${expectOpts.label} row.report Image Mime-Type`);
+			}
+		}
+	};
+	let rows;
+	if (expectOpts.streamClass) {
+		assert.ok(rslt.jsonFile, `CRUD ${expectOpts.label} jsonFile must not be empty`);
+		rows = JSON.parse(Fs.readFileSync(rslt.jsonFile, { encoding: 'utf-8' }));
+		assert.ok(Array.isArray(rows), `CRUD ${expectOpts.label} jsonFile rows must be an array`);
+		assert.equal(rows.length, expectOpts.count, `CRUD ${expectOpts.label} jsonFile rows.length`);
+		for (let row of rslt.rows) {
+			assert.ok(row instanceof expectOpts.streamClass, `CRUD ${expectOpts.label} class must be instance of expected stream class`);
+		}
+	} else {
+		rows = rslt.rows;
+	}
+	for (let row of rows) {
+		expectRow(row);
+	}
+	if (state) state.lastUpdated = updated;
 }
 
 /**
@@ -522,10 +521,18 @@ function datify(date) {
   return (date || new Date()).toISOString().replace('T', ' ').replace('Z', '');
 }
 
-// when not ran in a test runner execute static Tester functions (excluding what's passed into Main.run) 
-if (!Labrat.usingTestRunner()) {
-  // ensure unhandled rejections puke with a non-zero exit code
-  process.on('unhandledRejection', up => { throw up });
-  // run the test(s)
-  (async () => await Labrat.run(Tester))();
+if (require.main === module) {
+	process.on('unhandledRejection', up => { throw up; });
+	const method = process.argv[2];
+	(async () => {
+		if (!method || typeof Tester[method] !== 'function') {
+			throw new Error(`Unknown test method: ${method || '(none)'}`);
+		}
+		if (Tester.before) await Tester.before();
+		try {
+			await Tester[method]();
+		} finally {
+			if (Tester.after) await Tester.after();
+		}
+	})();
 }
