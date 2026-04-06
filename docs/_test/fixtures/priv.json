@@ -1,0 +1,11 @@
+{
+  "univ": {
+    "db": {
+      "mdb": {
+        "host": "sqler_mdb",
+        "username":"root",
+        "password": "my3qllocal"
+      }
+    }
+  }
+}

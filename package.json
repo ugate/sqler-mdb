@@ -13,9 +13,10 @@
     "test": "node --test test/main.test.js",
     "test-debug": "node --inspect-brk --test test/main.test.js",
     "test-crud": "NODE_ENV=test node --test --test-name-pattern='CRUD$' test/main.test.js",
+    "docs:cp-test": "rm -rf docs/_test && mkdir -p docs/_test && cp -R test/* docs/_test",
     "docs:api": "rm -rf docs/api docs/api__index__.md docs/apitypedefs.md && node ./docs/generate-api.mjs",
-    "docs:dev": "npm run docs:api && vitepress dev",
-    "docs:build": "npm run docs:api && vitepress build",
+    "docs:dev": "npm run docs:cp-test && npm run docs:api && vitepress dev docs",
+    "docs:build": "npm run docs:cp-test && npm run docs:api && vitepress build docs",
     "docs:preview": "vitepress preview"
   },
   "repository": {

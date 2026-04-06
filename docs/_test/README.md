@@ -1,0 +1,52 @@
+# Test
+All tests are ran within Docker containers via `docker-compose.yml`.
+
+## Testing: CI
+From the root of the project, build the test docker image, run docker-compose and run the test suite using the following commands:
+```sh
+# typically, the following will be performed in a CI environment
+# rather than directly from a command line
+docker-compose build sqler_mdb_dialect
+docker-compose up -d
+docker logs --details sqler_mdb
+docker logs --details sqler_mdb_dialect
+docker ps -a
+# run the test suite... docker exec -it sqler_mdb_dialect bash "npm test"
+source test/run.sh sqler_mdb sqler_mdb_dialect "npm test"
+# build the docs...
+docker exec -it sqler_mdb_dialect bash "npm run docs:build"
+source test/run.sh sqler_mdb sqler_mdb_dialect "npm run docs:build"
+```
+
+## Testing: Development
+From the root of the project, build the test docker image and run docker-compose using the following commands:
+```sh
+docker-compose build sqler_mdb_dialect
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --force-recreate
+```
+
+### Testing: Run/Debug
+From a different command prompt, run the following command(s):
+```sh
+# end-to-end
+docker exec -i sqler_mdb_dialect bash "npm test"
+# unit
+docker exec -it sqler_mdb_dialect bash "node --test test/main.test.js"
+node --test test/main.test.js
+// or debug:
+// node --inspect-brk --test test/main.test.js
+# functional (replace "someTestFunction" with static function name in test/lib/main.js)
+docker exec -it sqler_mdb_dialect bash
+node test/lib/main.js someTestFunction -NODE_ENV=test
+node --inspect-brk=0.0.0.0 test/lib/main.js someTestFunction -NODE_ENV=test
+// connections can be established using the normal node debug port `9229`
+```
+
+## External Database Access
+When the docker container is running the underlying database should be accessible extrernally using the  default port for the database.
+
+### Generating Docs
+Once the docker containers are up and running, the docs can be built and hosted/previewed by opening a command prompt and executing the following (link to docs will be displayed):
+```sh
+docker exec -it sqler_mdb_dialect bash "npm run docs:dev"
+```

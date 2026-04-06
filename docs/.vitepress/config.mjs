@@ -5,7 +5,7 @@ export default defineConfig({
  title: 'sqler-mdb',
  description: 'MariaDB/MySQL dialect for sqler',
  base: '/sqler-mdb/',
- srcDir: 'docs',
+//  srcDir: 'docs',
  cleanUrls: true,
  head: [
   ['link', { rel: 'icon', type: 'image/png', href: '/sqler-mdb/favicon-32x32.png' }]

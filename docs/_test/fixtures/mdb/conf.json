@@ -1,0 +1,22 @@
+{
+  "db": {
+    "dialects": {
+      "mdb": "sqler-mdb"
+    },
+    "connections": [
+      {
+        "id": "mdb",
+        "name": "mdb",
+        "dir": "db/mdb",
+        "service": "MySQL",
+        "dialect": "mdb",
+        "pool": {},
+        "driverOptions": {
+          "connection": {
+            "multipleStatements": true
+          }
+        }
+      }
+    ]
+  }
+}
