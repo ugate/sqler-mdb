@@ -208,21 +208,56 @@ async function moveIfExists(fromRel, toRel) {
   return true;
 }
 
+async function getPublicApiItems() {
+  const src = await fs.readFile(path.join(root, 'index.js'), 'utf8');
+  const items = [];
+
+  // public class declarations with JSDoc
+  for (const m of src.matchAll(/\/\*\*([\s\S]*?)\*\/\s*class\s+([A-Za-z][A-Za-z0-9_$]*)/g)) {
+    const jsdoc = m[1];
+    const name = m[2];
+    if (/@private\b/.test(jsdoc)) continue;
+    items.push({
+      text: name,
+      link: `/api/manager#${headingTextToAutoId(name)}`
+    });
+  }
+
+  // public instance methods with JSDoc
+  for (const m of src.matchAll(/\/\*\*([\s\S]*?)\*\/\s*(?:async\s+)?([A-Za-z][A-Za-z0-9_$]*)\s*\(/g)) {
+    const jsdoc = m[1];
+    const name = m[2];
+
+    if (/@private\b/.test(jsdoc)) continue;
+    if (name === 'constructor') continue;
+
+    // keep API page focused on the dialect surface
+    items.push({
+      text: name,
+      link: `/api/manager#${headingTextToAutoId(name)}`
+    });
+  }
+
+  // de-dup while preserving order
+  const seen = new Set();
+  return items.filter(item => {
+    if (seen.has(item.text)) return false;
+    seen.add(item.text);
+    return true;
+  });
+}
+
 async function writeApiIndex() {
   const apiIndex = path.join(apiDir, 'index.md');
+  const items = await getPublicApiItems();
+
   const lines = [
-    '# API Reference',
+    '# API',
     '',
-    'Generated API pages:',
-    '',
-    '- [sqler-mdb manager](/api/manager)',
-    '- [sqler typedefs](' + SQLER_API_TYPEDEFS + ')',
-    // '- [sqler lib/dbs](' + SQLER_API_BASE + '/lib/dbs)',
-    '- [sqler lib/dialect](' + SQLER_API_BASE + '/lib/dialect)',
-    // '- [sqler lib/sqls](' + SQLER_API_BASE + '/lib/sqls)',
-    // '- [sqler lib/utils](' + SQLER_API_BASE + '/lib/utils)',
+    ...items.map(item => `- [${item.text}](${item.link})`),
     ''
   ];
+
   await ensureDir(path.dirname(apiIndex));
   await fs.writeFile(apiIndex, lines.join('\n'), 'utf8');
 }

@@ -36,7 +36,7 @@ For example, <code>binds.name = &#39;${SOME_MARIADB_CONSTANT}&#39;</code> will b
 </dl>
 
 ## MDBDialect
-MariaDB + MySQL [Dialect](Dialect) implementation for [`sqler`](https://ugate.github.io/sqler/)
+MariaDB + MySQL [Dialect](https://ugate.github.io/sqler/api/lib/dialect#dialect) implementation for [`sqler`](https://ugate.github.io/sqler/)
 
 **Kind**: global class  
 
@@ -56,8 +56,8 @@ Constructor
 | Param | Type | Description |
 | --- | --- | --- |
 | priv | <code>typedefs.SQLERPrivateOptions</code> | The private configuration options |
-| connConf | [<code>MDBConnectionOptions</code>](#mdbconnectionoptions-typedefs-sqlerconnectionoptions) | The individual SQL __connection__ configuration for the given dialect that was passed into the originating [Manager](Manager) |
-| track | <code>typedefs.SQLERTrack</code> | Container for sharing data between [Dialect](Dialect) instances. |
+| connConf | [<code>MDBConnectionOptions</code>](#mdbconnectionoptions-typedefs-sqlerconnectionoptions) | The individual SQL __connection__ configuration for the given dialect that was passed into the originating [Manager](https://ugate.github.io/sqler/api/manager#manager) |
+| track | <code>typedefs.SQLERTrack</code> | Container for sharing data between [Dialect](https://ugate.github.io/sqler/api/lib/dialect#dialect) instances. |
 | [errorLogger] | <code>function</code> | A function that takes one or more arguments and logs the results as an error (similar to `console.error`) |
 | [logger] | <code>function</code> | A function that takes one or more arguments and logs the results (similar to `console.log`) |
 | [debug] | <code>Boolean</code> | A flag that indicates the dialect should be run in debug mode (if supported) |
@@ -117,11 +117,11 @@ The `mariadb` (w/MySQL support) module specific options. __Both `connection` and
 
 | Name | Type | Description |
 | --- | --- | --- |
-| [connection] | <code>Object</code> | An object that will contain properties/values that will be used to construct the MariaDB + MySQL connection (e.g. `{ database: 'mydb', timezone: '-0700' }`). See the `mariadb` module documentation for a full listing of available connection options. When a property value is a string surrounded by `${}`, it will be assumed to be a property that resides on either the [SQLERPrivateOptions](SQLERPrivateOptions) passed into the [Manager](Manager) constructor or a property on the [MDBConnectionOptions](#mdbconnectionoptions-typedefs-sqlerconnectionoptions) itself (in that order of precedence). For example,  `connOpts.host = '127.0.0.1'` and `driverOptions.connection.host = '${host}'` would be interpolated into `driverOptions.connection.host = '127.0.0.1'`. In contrast to `privOpts.username = 'someUsername' and `driverOptions.connection.user = '${username}'` would be interpolated into `driverOptions.connection.user = 'someUsername'`. Interpoaltions can also contain more than one reference. For example, `driverOptions.connection.someProp = '${protocol}:${host}'` for  `privOpts = { protocol: 'TCP', host: 'example.com' }` would become `someProp='TCP:example.com'`. |
+| [connection] | <code>Object</code> | An object that will contain properties/values that will be used to construct the MariaDB + MySQL connection (e.g. `{ database: 'mydb', timezone: '-0700' }`). See the `mariadb` module documentation for a full listing of available connection options. When a property value is a string surrounded by `${}`, it will be assumed to be a property that resides on either the [SQLERPrivateOptions](https://ugate.github.io/sqler/api/typedefs#typedefs-sqlerprivateoptions-object) passed into the [Manager](https://ugate.github.io/sqler/api/manager#manager) constructor or a property on the [MDBConnectionOptions](#mdbconnectionoptions-typedefs-sqlerconnectionoptions) itself (in that order of precedence). For example,  `connOpts.host = '127.0.0.1'` and `driverOptions.connection.host = '${host}'` would be interpolated into `driverOptions.connection.host = '127.0.0.1'`. In contrast to `privOpts.username = 'someUsername' and `driverOptions.connection.user = '${username}'` would be interpolated into `driverOptions.connection.user = 'someUsername'`. Interpoaltions can also contain more than one reference. For example, `driverOptions.connection.someProp = '${protocol}:${host}'` for  `privOpts = { protocol: 'TCP', host: 'example.com' }` would become `someProp='TCP:example.com'`. |
 | [pool] | <code>Object</code> | The pool `conf` options that will be passed into `mariadb.createPool(conf)`. See the `mariadb` module for a full listing of avialable connection pooling options. __Using any of the generic `pool.someOption` will override the `conf` options set on `driverOptions.pool`__ (e.g. `pool.max = 10` would override  `driverOptions.pool.connectionLimit = 20`). When a value is a string surrounded by `${}`, it will be assumed to be a _constant_ property that resides on the `mariadb` module and will be interpolated accordingly. For example `driverOptions.pool.someProp = '${SOME_MARIADB_CONSTANT}'` will be interpolated as `pool.someProp = mariadb.SOME_MARIADB_CONSTANT`. |
 
 ## MDBConnectionOptions : <code>typedefs.SQLERConnectionOptions</code>
-MariaDB + MySQL specific extension of the [SQLERConnectionOptions](SQLERConnectionOptions) from the [`sqler`](https://ugate.github.io/sqler/) module.
+MariaDB + MySQL specific extension of the [SQLERConnectionOptions](https://ugate.github.io/sqler/api/typedefs#typedefs-sqlerconnectionoptions-object) from the [`sqler`](https://ugate.github.io/sqler/) module.
 
 **Kind**: global typedef  
 **Properties**
@@ -131,7 +131,7 @@ MariaDB + MySQL specific extension of the [SQLERConnectionOptions](SQLERConnecti
 | driverOptions | [<code>MDBConnectionDriverOptions</code>](#mdbconnectiondriveroptions-object) | The `mariadb` (w/MySQL support) module specific options. __Both `connection` and `pool` will be merged when generating the connection pool.__ |
 
 ## MDBExecDriverOptions : <code>Object</code>
-MariaDB + MySQL specific extension of the [SQLERExecOptions](SQLERExecOptions) from the [`sqler`](https://ugate.github.io/sqler/) module. When a property of `binds`
+MariaDB + MySQL specific extension of the [SQLERExecOptions](https://ugate.github.io/sqler/api/typedefs#typedefs-sqlerexecoptions-object) from the [`sqler`](https://ugate.github.io/sqler/) module. When a property of `binds`
 contains an object it will be _interpolated_ for property values on the `mariadb` module.
 For example, `binds.name = '${SOME_MARIADB_CONSTANT}'` will be interpolated as
 `binds.name = mariadb.SOME_MARIADB_CONSTANT`.
@@ -142,11 +142,11 @@ For example, `binds.name = '${SOME_MARIADB_CONSTANT}'` will be interpolated as
 | Name | Type | Default | Description |
 | --- | --- | --- | --- |
 | [preparedStatementDatabase] | <code>String</code> |  | The database name to use when generating prepared statements for the given execution. Since prepared statements are scoped only for a given connection and a temporary stored procedure is used to execute prepared statements, __`preparedStatementDatabase` is required when `execOpts.prepareStatement = true`.__ |
-| [exec] | <code>Object</code> |  | The options passed into execution/query functions provided by the `mariadb` module performed during [Manager.exec](#). When a value is a string surrounded by `${}`, it will be assumed to be a _constant_ property that resides on the `mariadb` module and will be interpolated accordingly. For example `driverOptions.exec.someDriverProp = '${SOME_MARIADB_CONSTANT}'` will be interpolated as `driverOptions.exec.someDriverProp = mariadb.SOME_MARIADB_CONSTANT`. |
+| [exec] | <code>Object</code> |  | The options passed into execution/query functions provided by the `mariadb` module performed during [Manager.exec](https://ugate.github.io/sqler/api/manager). When a value is a string surrounded by `${}`, it will be assumed to be a _constant_ property that resides on the `mariadb` module and will be interpolated accordingly. For example `driverOptions.exec.someDriverProp = '${SOME_MARIADB_CONSTANT}'` will be interpolated as `driverOptions.exec.someDriverProp = mariadb.SOME_MARIADB_CONSTANT`. |
 | [exec.namedPlaceholders] | <code>Boolean</code> | <code>true</code> | Truthy to use named parameters in MariaDB/MySQL or falsy to convert the named parameters into a positional array of bind values. |
 
 ## MDBExecOptions : <code>typedefs.SQLERExecOptions</code>
-MariaDB + MySQL specific extension of the [SQLERExecOptions](SQLERExecOptions) from the [`sqler`](https://ugate.github.io/sqler/) module. When a property of `binds`
+MariaDB + MySQL specific extension of the [SQLERExecOptions](https://ugate.github.io/sqler/api/typedefs#typedefs-sqlerexecoptions-object) from the [`sqler`](https://ugate.github.io/sqler/) module. When a property of `binds`
 contains an object it will be _interpolated_ for property values on the `mariadb` module.
 For example, `binds.name = '${SOME_MARIADB_CONSTANT}'` will be interpolated as
 `binds.name = mariadb.SOME_MARIADB_CONSTANT`.

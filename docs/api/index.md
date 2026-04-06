@@ -1,7 +1,7 @@
-# API Reference
+# API
 
-Generated API pages:
-
-- [Getting Started](/guide/getting-started)
-- [Manual](/guide/manual)
-- [API Docs](/api/)
+- [MDBDialect](/api/manager#mdbdialect)
+- [init](/api/manager#init)
+- [beginTransaction](/api/manager#begintransaction)
+- [exec](/api/manager#exec)
+- [close](/api/manager#close)
