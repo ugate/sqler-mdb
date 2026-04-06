@@ -208,7 +208,7 @@ async function moveIfExists(fromRel, toRel) {
   return true;
 }
 
-async function getPublicApiItems() {
+async function getPublicApiItems(symbolIndex) {
   const src = await fs.readFile(path.join(root, 'index.js'), 'utf8');
   const items = [];
 
@@ -217,9 +217,14 @@ async function getPublicApiItems() {
     const jsdoc = m[1];
     const name = m[2];
     if (/@private\b/.test(jsdoc)) continue;
+
+    const found = symbolIndex.get(name);
+    if (!found) continue;
+
+    const rel = path.relative(docsDir, found.file).replace(/\\/g, '/').replace(/\.md$/i, '');
     items.push({
       text: name,
-      link: `/api/manager#${headingTextToAutoId(name)}`
+      link: `/${rel}#${found.id}`
     });
   }
 
@@ -227,18 +232,19 @@ async function getPublicApiItems() {
   for (const m of src.matchAll(/\/\*\*([\s\S]*?)\*\/\s*(?:async\s+)?([A-Za-z][A-Za-z0-9_$]*)\s*\(/g)) {
     const jsdoc = m[1];
     const name = m[2];
-
     if (/@private\b/.test(jsdoc)) continue;
     if (name === 'constructor') continue;
 
-    // keep API page focused on the dialect surface
+    const found = symbolIndex.get(`MDBDialect.${name}`);
+    if (!found) continue;
+
+    const rel = path.relative(docsDir, found.file).replace(/\\/g, '/').replace(/\.md$/i, '');
     items.push({
       text: name,
-      link: `/api/manager#${headingTextToAutoId(name)}`
+      link: `/${rel}#${found.id}`
     });
   }
 
-  // de-dup while preserving order
   const seen = new Set();
   return items.filter(item => {
     if (seen.has(item.text)) return false;
@@ -247,23 +253,21 @@ async function getPublicApiItems() {
   });
 }
 
-async function writeApiIndex() {
+async function writeApiIndex(symbolIndex) {
   const apiIndex = path.join(apiDir, 'index.md');
-  const items = await getPublicApiItems();
-
+  const items = await getPublicApiItems(symbolIndex);
   const lines = [
     '# API',
     '',
     ...items.map(item => `- [${item.text}](${item.link})`),
     ''
   ];
-
   await ensureDir(path.dirname(apiIndex));
   await fs.writeFile(apiIndex, lines.join('\n'), 'utf8');
 }
 
-async function writeApiSidebar() {
-  const items = await getPublicApiItems();
+async function writeApiSidebar(symbolIndex) {
+  const items = await getPublicApiItems(symbolIndex);
   const out = path.join(docsDir, '.vitepress', 'api-sidebar.mjs');
   const content = `export default [
   {
@@ -290,9 +294,6 @@ async function normalizeOutput() {
 
   await rmrf(path.join(apiDir, 'README.md'));
   await rmrf(path.join(apiDir, '__index__.md'));
-
-  await writeApiIndex();
-  await writeApiSidebar();
 }
 
 function normalizeGuideLinks(md, relPath) {
@@ -399,19 +400,17 @@ function rewriteLinks(md, file, symbolIndex) {
 async function postProcessMarkdown() {
   const mdFiles = await walkFiles(docsDir, file => file.endsWith('.md'));
   const symbolIndex = await buildSymbolIndex(mdFiles);
-
   for (const file of mdFiles) {
     const rel = path.relative(docsDir, file).replace(/\\/g, '/');
     let md = await fs.readFile(file, 'utf8');
     const original = md;
-
     md = normalizeGuideLinks(md, rel);
     md = rewriteLinks(md, file, symbolIndex);
-
     if (md !== original) {
       await fs.writeFile(file, md, 'utf8');
     }
   }
+  return symbolIndex;
 }
 
 async function main() {
@@ -419,7 +418,9 @@ async function main() {
     await stageSources();
     await runGenerator();
     await normalizeOutput();
-    await postProcessMarkdown();
+    const symbolIndex = await postProcessMarkdown();
+    await writeApiIndex(symbolIndex);
+    await writeApiSidebar(symbolIndex);
   } finally {
     await rmrf(stageRoot);
   }
