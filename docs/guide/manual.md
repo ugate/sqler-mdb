@@ -1,13 +1,13 @@
-## Examples {#examples}
+# Examples {#examples}
 
 The examples below use the following setup:
 
-__[Private Options Configuration:](https://example.com/guide/manager#~PrivateOptions)__
+__[Private Options Configuration:](https://ugate.github.io/sqler/api/typedefs#typedefs-sqlerprivateoptions-object)__
 (appended to the subsequent connection options)
 
 <<< @/_test/fixtures/priv.json
 
-__[Connection Options Configuration:](https://example.com/global.html#MDBConnectionOptions)__
+__[Connection Options Configuration:](https://ugate.github.io/sqler/api/typedefs#typedefs-sqlerconnectionoptions-object)__
 
 <<< @/_test/fixtures/mdb/conf.json
 
@@ -15,7 +15,7 @@ Test code that illustrates how to use MariaDB/MySQL with various examples
 
 <<< @/_test/fixtures/run-example.js
 
-### Create Database {#create_db}
+## Create Database {#create_db}
 
 > db/mdb/setup/create.database.sql
 
@@ -23,7 +23,7 @@ Test code that illustrates how to use MariaDB/MySQL with various examples
 
 <<< @/_test/lib/mdb/setup/create.database.js
 
-### Create Table(s) {#create_tables}
+## Create Table(s) {#create_tables}
 
 > db/mdb/setup/create.table1.sql
 
@@ -33,7 +33,7 @@ Test code that illustrates how to use MariaDB/MySQL with various examples
 
 <<< @/_test/db/mdb/setup/create.table2.sql
 
-### Create Rows {#create_rows}
+## Create Rows {#create_rows}
 
 > db/mdb/create.table.rows.sql
 
@@ -41,7 +41,7 @@ Test code that illustrates how to use MariaDB/MySQL with various examples
 
 <<< @/_test/lib/mdb/create.table.rows.js
 
-### Read Rows {#read}
+## Read Rows {#read}
 
 > db/mdb/read.table.rows.sql
 
@@ -49,7 +49,7 @@ Test code that illustrates how to use MariaDB/MySQL with various examples
 
 <<< @/_test/lib/mdb/read.table.rows.js
 
-### Update Rows {#update}
+## Update Rows {#update}
 
 > db/mdb/update.table.rows.sql
 
@@ -71,7 +71,7 @@ Test code that illustrates how to use MariaDB/MySQL with various examples
 
 <<< @/_test/lib/mdb/update.table.rows.js
 
-### Delete Rows {#delete}
+## Delete Rows {#delete}
 
 > db/mdb/delete.table.rows.sql
 
@@ -79,23 +79,23 @@ Test code that illustrates how to use MariaDB/MySQL with various examples
 
 <<< @/_test/lib/mdb/delete.table.rows.js
 
-### Create Rows (streaming using the same SQL as the prior create rows example) {#create_stream}
+## Create Rows (streaming using the same SQL as the prior create rows example) {#create_stream}
 
 <<< @/_test/lib/mdb/create.stream.table.rows.js
 
-### Read Rows (streaming using the same SQL as the prior read rows example) {#read_stream}
+## Read Rows (streaming using the same SQL as the prior read rows example) {#read_stream}
 
 <<< @/_test/lib/mdb/read.stream.table.rows.js
 
-### Update Rows (streaming using the same SQL as the prior update rows example) {#update_stream}
+## Update Rows (streaming using the same SQL as the prior update rows example) {#update_stream}
 
 <<< @/_test/lib/mdb/update.stream.table.rows.js
 
-### Delete Rows (streaming using the same SQL as the prior delete rows example) {#delete_stream}
+## Delete Rows (streaming using the same SQL as the prior delete rows example) {#delete_stream}
 
 <<< @/_test/lib/mdb/delete.stream.table.rows.js
 
-### Delete Database {#delete_db}
+## Delete Database {#delete_db}
 
 > db/mdb/setup/delete.database.sql
 
