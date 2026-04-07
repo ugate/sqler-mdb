@@ -1,7 +1,7 @@
 'use strict';
 
+const assert = require('node:assert/strict');
 const MDBDialect = require('../../index');
-const { expect } = require('@hapi/code');
 
 /**
 * Test MariaDB + MySQL database {@link Dialect}
@@ -14,29 +14,22 @@ module.exports = class MDBTestDialect extends MDBDialect {
   constructor(priv, connConf, track, errorLogger, logger, debug) {
     super(priv, connConf, track, errorLogger, logger, debug);
 
-    expect(priv, 'priv').to.be.object();
+    assertObject(priv, 'priv');
+    assertObject(connConf, 'connConf');
 
-    expect(connConf, 'connConf').to.be.object();
-
-    expect(connConf.username || priv.username, 'priv.username').to.be.string();
-    expect(connConf.username || priv.username, 'priv.username.length').to.not.be.empty();
-
-    expect(connConf.id, 'connConf.id').to.be.string();
-    expect(connConf.id, 'connConf.id.length').to.not.be.empty();
-    expect(connConf.name, 'connConf.name').to.be.string();
-    expect(connConf.name, 'connConf.name.length').to.not.be.empty();
-    expect(connConf.dir, 'connConf.dir').to.be.string();
-    expect(connConf.dir, 'connConf.dir.length').to.not.be.empty();
-    expect(connConf.service, 'connConf.service').to.be.string();
-    expect(connConf.service, 'connConf.service.length').to.not.be.empty();
-    expect(connConf.dialect, 'connConf.dialect === mdb').to.equal('mdb');
+    assertString(connConf.username || priv.username, 'priv.username');
+    assertString(connConf.id, 'connConf.id');
+    assertString(connConf.name, 'connConf.name');
+    assertString(connConf.dir, 'connConf.dir');
+    assertString(connConf.service, 'connConf.service');
+    assert.equal(connConf.dialect, 'mdb', 'connConf.dialect === mdb');
 
     expectDriverOptions(connConf, this);
 
-    expect(track, 'track').to.be.object();
-    if (errorLogger) expect(errorLogger, 'errorLogger').to.be.function();
-    if (logger) expect(logger, 'logger').to.be.function();
-    expect(debug, 'debug').to.be.boolean();
+    assertObject(track, 'track');
+    if (errorLogger) assertFunction(errorLogger, 'errorLogger');
+    if (logger) assertFunction(logger, 'logger');
+    assertBoolean(debug, 'debug');
   }
 
   /**
@@ -44,7 +37,6 @@ module.exports = class MDBTestDialect extends MDBDialect {
    */
   async init(opts) {
     const pool = await super.init(opts);
-
     return pool;
   }
 
@@ -52,20 +44,18 @@ module.exports = class MDBTestDialect extends MDBDialect {
    * @inheritdoc
    */
   async exec(sql, opts, frags, meta, errorOpts) {
-    expect(sql, 'sql').to.be.string();
-
-    expect(opts, 'opts').to.be.object();
+    assertString(sql, 'sql');
+    assertObject(opts, 'opts');
 
     const state = super.state;
-    expect(state, 'dialect.state').to.be.object();
-    expect(state.pending, 'dialect.state.pending').to.be.number();
-    expect(state.connection, 'dialect.connection').to.be.object();
-    expect(state.connection.count, 'dialect.connection.count').to.be.number();
-    expect(state.connection.inUse, 'dialect.connection.inUse').to.be.number();
+    assertObject(state, 'dialect.state');
+    assertNumber(state.pending, 'dialect.state.pending');
+    assertObject(state.connection, 'dialect.connection');
+    assertNumber(state.connection.count, 'dialect.connection.count');
+    assertNumber(state.connection.inUse, 'dialect.connection.inUse');
 
-    expect(meta, 'meta').to.be.object();
-    expect(meta.name, 'meta').to.be.string();
-    expect(meta.name, 'meta').to.not.be.empty();
+    assertObject(meta, 'meta');
+    assertString(meta.name, 'meta.name');
 
     return super.exec(sql, opts, frags, meta, errorOpts);
   }
@@ -84,25 +74,40 @@ module.exports = class MDBTestDialect extends MDBDialect {
  * @param {MDBTestDialect} dlt The test dialect
  */
 function expectDriverOptions(opts, dlt) {
-  expect(dlt.driver, `${dlt.constructor.name} driver`).to.be.object();
+  assertObject(dlt.driver, `${dlt.constructor.name} driver`);
   if (!opts.driverOptions) return;
-  expect(opts.driverOptions, 'connConf.driverOptions').to.be.object();
+
+  assertObject(opts.driverOptions, 'connConf.driverOptions');
   if (!opts.global) return;
-  expect(opts.driverOptions.global, 'connConf.driverOptions.global').to.be.object();
-  //expect(opts.driverOptions.global.autoCommit, 'connConf.driverOptions.global.autoCommit = dlt.isAutocommit').to.equal(dlt.isAutocommit());
-  for (let odb in opts.driverOptions.global) {
-    expect(opts.driverOptions.global[odb], `connConf.driverOptions.global.${odb} = dlt.driver.${odb}`).to.be.equal(dlt.driver[odb]);
+
+  assertObject(opts.driverOptions.global, 'connConf.driverOptions.global');
+  // assert.equal(opts.driverOptions.global.autoCommit, dlt.isAutocommit(), 'connConf.driverOptions.global.autoCommit = dlt.isAutocommit');
+  for (const odb in opts.driverOptions.global) {
+    assert.equal(
+      opts.driverOptions.global[odb],
+      dlt.driver[odb],
+      `connConf.driverOptions.global.${odb} = dlt.driver.${odb}`
+    );
   }
 }
 
-// private mapping
-let map = new WeakMap();
-let internal = function(object) {
-  if (!map.has(object)) {
-    map.set(object, {});
-  }
-  return {
-    at: map.get(object),
-    this: object
-  };
-};
+function assertObject(value, label) {
+  assert.ok(value && typeof value === 'object' && !Array.isArray(value), label);
+}
+
+function assertString(value, label) {
+  assert.equal(typeof value, 'string', label);
+  assert.notEqual(value.length, 0, `${label}.length`);
+}
+
+function assertFunction(value, label) {
+  assert.equal(typeof value, 'function', label);
+}
+
+function assertBoolean(value, label) {
+  assert.equal(typeof value, 'boolean', label);
+}
+
+function assertNumber(value, label) {
+  assert.equal(typeof value, 'number', label);
+}

@@ -9,7 +9,7 @@ __[Private Options Configuration:](https://ugate.github.io/sqler/api/typedefs#ty
 
 __[Connection Options Configuration:](https://ugate.github.io/sqler/api/typedefs#typedefs-sqlerconnectionoptions-object)__
 
-<<< @/_test/fixtures/mdb/conf.json
+<<< @/_test/fixtures/mdb/conf.js
 
 Test code that illustrates how to use MariaDB/MySQL with various examples
 

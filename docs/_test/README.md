@@ -2,12 +2,12 @@
 All tests are ran within Docker containers via `docker-compose.yml`.
 
 ## Testing: CI
-From the root of the project, build the test docker image, run docker-compose and run the test suite using the following commands:
+From the root of the project, build the test docker image, run `docker compose` and run the test suite using the following commands:
 ```sh
 # typically, the following will be performed in a CI environment
 # rather than directly from a command line
-docker-compose build sqler_mdb_dialect
-docker-compose up -d
+docker compose build sqler_mdb_dialect
+docker compose up -d
 docker logs --details sqler_mdb
 docker logs --details sqler_mdb_dialect
 docker ps -a
@@ -21,8 +21,8 @@ source test/run.sh sqler_mdb sqler_mdb_dialect "npm run docs:build"
 ## Testing: Development
 From the root of the project, build the test docker image and run docker-compose using the following commands:
 ```sh
-docker-compose build sqler_mdb_dialect
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --force-recreate
+docker compose build sqler_mdb_dialect
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --force-recreate
 ```
 
 ### Testing: Run/Debug
