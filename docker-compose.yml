@@ -9,24 +9,26 @@ x-env-sqler: &env-tokens
 services:
   # MySQL: https://hub.docker.com/_/mysql
   sqler_mdb:
-    image: mysql:latest
-    command: --default-authentication-plugin=mysql_native_password
+    image: mysql:8.4
+    # command: --default-authentication-plugin=mysql_native_password
+    command:
+      - --require_secure_transport=ON
+      - --ssl-ca=/etc/mysql/ssl/ca.pem
+      - --ssl-cert=/etc/mysql/ssl/server-cert.pem
+      - --ssl-key=/etc/mysql/ssl/server-key.pem
     container_name: sqler_mdb
     restart: unless-stopped
     environment:
       <<: *env-vars
     networks:
       - app
-    # healthcheck:
-    #   # test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", '-p$$MYSQL_ROOT_PASSWORD' ]
-    #   test: out=$$(mysqladmin ping -h localhost -P 3306 -u root --password=$$MYSQL_ROOT_PASSWORD 2>&1); echo $$out | grep 'mysqld is alive' || { echo $$out; exit 1; }
-    #   timeout: 20s
-    #   retries: 10
     healthcheck:
-      test: ["CMD", "node", "-e", "process.exit(0)"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      # test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", '-p$$MYSQL_ROOT_PASSWORD' ]
+      test: out=$$(mysqladmin ping -h localhost -P 3306 -u root --password=$$MYSQL_ROOT_PASSWORD 2>&1); echo $$out | grep 'mysqld is alive' || { echo $$out; exit 1; }
+      timeout: 20s
+      retries: 10
+    volumes:
+      - ./test/ssl:/etc/mysql/ssl:ro
     ports:
       - 3306:3306
   # NodeJS for sqler dialect testing
@@ -53,8 +55,10 @@ services:
     restart: unless-stopped
     environment:
       <<: [ *env-vars, *env-tokens ]
+      SQLER_TEST_SSL_DIR: /home/node/app/test/fixtures/ssl
     volumes:
       - ./docs:/home/node/app/docs
+      - ./test/fixtures/ssl:/home/node/app/test/fixtures/ssl:ro
 networks:
   app:
     driver: bridge

@@ -1,6 +1,5 @@
 'use strict';
 
-// TODO : ESM comment the following lines...
 const assert = require('node:assert/strict');
 const { Manager } = require('sqler');
 const typedefs = require('sqler/typedefs');
@@ -330,7 +329,10 @@ module.exports = Tester;
 function getConf(overrides) {
   let conf = test.conf[test.vendor];
   if (!conf) {
-    conf = test.conf[test.vendor] = JSON.parse(Fs.readFileSync(Path.join(`test/fixtures/${test.vendor}`, `conf${test.suffix || ''}.json`), 'utf8'));
+    const confPath = Path.resolve(Path.join(`test/fixtures/${test.vendor}`, `conf${test.suffix || ''}.js`));
+    delete require.cache[confPath];
+    const confFactory = require(confPath);
+    conf = test.conf[test.vendor] = typeof confFactory === 'function' ? confFactory() : confFactory;
     if (!test.univ) {
       test.univ = JSON.parse(Fs.readFileSync(Path.join('test/fixtures', `priv${test.suffix || ''}.json`), 'utf8')).univ;
     }
