@@ -50,7 +50,7 @@ services:
       timeout: 20s
       retries: 10
     ports:
-      - 4001:80
+      - 4173:4173
       - 9229:9229
     restart: unless-stopped
     environment:
