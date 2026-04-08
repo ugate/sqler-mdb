@@ -17,8 +17,8 @@
     "docs:api": "rm -rf docs/api docs/api__index__.md docs/apitypedefs.md && node ./docs/generate-api.mjs",
     "docs:dev": "npm run docs:cp-test && npm run docs:api && vitepress dev docs",
     "docs:build": "npm run docs:cp-test && npm run docs:api && vitepress build docs",
-    "docs:preview": "vitepress preview",
-    "docs:build-preview": "npm run docs:cp-test && npm run docs:api && vitepress build docs && vitepress preview"
+    "docs:preview": "vitepress preview docs",
+    "docs:build-preview": "npm run docs:cp-test && npm run docs:api && vitepress build docs && vitepress preview docs --host 0.0.0.0 --port 4173"
   },
   "repository": {
     "type": "git",
