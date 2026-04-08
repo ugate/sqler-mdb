@@ -35,7 +35,7 @@ jobs:
       - name: Configure MySQL SSL user
         run: |
           docker exec sqler_mdb sh -lc '
-            mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "
+            mysql -h127.0.0.1 -P3306 -uroot -p"$MYSQL_ROOT_PASSWORD" -e "
               ALTER USER '\''root'\''@'\''%'\'' REQUIRE SSL;
               FLUSH PRIVILEGES;
             "
