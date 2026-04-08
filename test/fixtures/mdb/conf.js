@@ -17,7 +17,8 @@ module.exports = function buildConf() {
       ca: fs.readFileSync(path.join(sslBase, 'ca.pem'), 'utf8'),
       cert: fs.readFileSync(path.join(sslBase, 'client-cert.pem'), 'utf8'),
       key: fs.readFileSync(path.join(sslBase, 'client-key.pem'), 'utf8'),
-      rejectUnauthorized: true,
+      // rejectUnauthorized should normally be set to true, but is set to false for testing/illustration purposes
+      rejectUnauthorized: false,
       minVersion: 'TLSv1.2'
     };
   } else {
