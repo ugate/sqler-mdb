@@ -356,6 +356,7 @@ function getConf(overrides) {
   }
   let exclude;
   for (let conn of conf.db.connections) {
+    const ssl = conn.driverOptions?.connection?.ssl;
     for (let prop in conn) {
       if (!conn.hasOwnProperty(prop)) continue;
       exclude = overrides && overrides.hasOwnProperty(prop);
@@ -369,6 +370,11 @@ function getConf(overrides) {
         conn.pool.increment = 1;
         if (!overrides) return conf; // no need to continue since there are no more options that need to be set manually
       }
+    }
+    if (ssl) {
+      conn.driverOptions = conn.driverOptions || {};
+      conn.driverOptions.connection = conn.driverOptions.connection || {};
+      conn.driverOptions.connection.ssl = ssl;
     }
   }
   return conf;
