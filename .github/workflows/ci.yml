@@ -22,6 +22,11 @@ jobs:
       - name: Build test container
         run: docker compose build sqler_mdb_dialect
 
+      - name: Fix TLS file ownership and permissions
+        run: |
+          chmod 600 test/fixtures/ssl/server-key.pem test/fixtures/ssl/client-key.pem
+          chmod 644 test/fixtures/ssl/ca.pem test/fixtures/ssl/server-cert.pem test/fixtures/ssl/client-cert.pem
+
       - name: Start test stack
         run: docker compose up -d
 
