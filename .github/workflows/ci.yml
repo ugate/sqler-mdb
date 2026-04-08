@@ -31,18 +31,46 @@ jobs:
           docker logs --details sqler_mdb || true
           docker logs --details sqler_mdb_dialect || true
 
-      - name: Inspect TLS certs inside containers
+      ### Verify MySQL and dialect containers have matching certs
+      # - name: Inspect TLS certs inside containers
+      #   shell: bash
+      #   run: |
+      #     echo "=== MySQL container certs ==="
+      #     docker exec sqler_mdb sh -lc '
+      #       openssl x509 -in /etc/mysql/ssl/ca.pem -noout -subject -issuer
+      #       openssl x509 -in /etc/mysql/ssl/server-cert.pem -noout -subject -issuer
+      #     '
+      #     echo "=== Dialect container certs ==="
+      #     docker exec sqler_mdb_dialect sh -lc '
+      #       openssl x509 -in /home/node/app/test/fixtures/ssl/ca.pem -noout -subject -issuer
+      #       openssl x509 -in /home/node/app/test/fixtures/ssl/client-cert.pem -noout -subject -issuer
+      #     '
+
+      ### Verify MySQL runtime SSL variables
+      - name: Inspect MySQL SSL runtime config
         shell: bash
         run: |
-          echo "=== MySQL container certs ==="
           docker exec sqler_mdb sh -lc '
-            openssl x509 -in /etc/mysql/ssl/ca.pem -noout -subject -issuer
-            openssl x509 -in /etc/mysql/ssl/server-cert.pem -noout -subject -issuer
+            mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "
+              SHOW VARIABLES LIKE '\''ssl_ca'\'';
+              SHOW VARIABLES LIKE '\''ssl_cert'\'';
+              SHOW VARIABLES LIKE '\''ssl_key'\'';
+              SHOW VARIABLES LIKE '\''require_secure_transport'\'';
+            "
           '
-          echo "=== Dialect container certs ==="
+      
+      ### Verify the client cert chains against the CA inside the containers
+      - name: Verify cert chains inside containers
+        shell: bash
+        run: |
+          echo "=== Verify in MySQL container ==="
+          docker exec sqler_mdb sh -lc '
+            openssl verify -CAfile /etc/mysql/ssl/ca.pem /etc/mysql/ssl/server-cert.pem || true
+          '
+
+          echo "=== Verify in dialect container ==="
           docker exec sqler_mdb_dialect sh -lc '
-            openssl x509 -in /home/node/app/test/fixtures/ssl/ca.pem -noout -subject -issuer
-            openssl x509 -in /home/node/app/test/fixtures/ssl/client-cert.pem -noout -subject -issuer
+            openssl verify -CAfile /home/node/app/test/fixtures/ssl/ca.pem /home/node/app/test/fixtures/ssl/client-cert.pem || true
           '
 
       - name: Run test suite in dialect container
