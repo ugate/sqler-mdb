@@ -6,4 +6,3 @@ docker-compose*
 .vscode
 node_modules
 npm-debug.log
-docs
