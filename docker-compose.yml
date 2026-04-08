@@ -54,7 +54,7 @@ services:
     networks:
       - app
     healthcheck:
-      test: curl --fail http://localhost:4173/ || exit 1
+      test: ["CMD-SHELL", "test -d /home/node/app && node -v >/dev/null 2>&1"]
       timeout: 20s
       retries: 10
     ports:

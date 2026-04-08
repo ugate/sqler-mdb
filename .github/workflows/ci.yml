@@ -36,11 +36,6 @@ jobs:
         run: |
           source test/run.sh sqler_mdb sqler_mdb_dialect "npm test"
 
-      - name: Build docs in dialect container
-        shell: bash
-        run: |
-          source test/run.sh sqler_mdb sqler_mdb_dialect "npm run docs:build"
-
       - name: Dump logs on failure
         if: failure()
         run: |

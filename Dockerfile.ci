@@ -15,4 +15,5 @@ RUN npm ci && \
 
 COPY . .
 
-CMD ["npm", "run", "docs:build-preview", "--", "--host", "0.0.0.0", "--port", "4173"]
+# no-op long-running command to allow tests to run
+CMD ["sh", "-lc", "sleep infinity"]
