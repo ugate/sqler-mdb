@@ -11,7 +11,6 @@
     "testOLD-debug": "lab --inspect-brk -v -P test -c --coverage-exclude lib -t 85 -e prod",
     "testOLD-crud": "env NODE_ENV=test node test/lib/main.js crud",
     "test": "node --test test/main.test.js",
-    "test-docker": "node test/server.js",
     "test-debug": "node --inspect-brk --test test/main.test.js",
     "test-crud": "NODE_ENV=test node --test --test-name-pattern='CRUD$' test/main.test.js",
     "docs:cp-test": "rm -rf docs/_test && mkdir -p docs/_test && cp -R test/* docs/_test",

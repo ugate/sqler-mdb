@@ -28,7 +28,7 @@ services:
       timeout: 20s
       retries: 10
     volumes:
-      - ./test/ssl:/etc/mysql/ssl:ro
+      - ./test/fixtures/ssl:/etc/mysql/ssl:ro
     ports:
       - 3306:3306
   # NodeJS for sqler dialect testing
@@ -58,7 +58,7 @@ services:
       SQLER_TEST_SSL_DIR: /home/node/app/test/fixtures/ssl
     volumes:
       - ./docs:/home/node/app/docs
-      - ./test/fixtures/ssl:/home/node/app/test/fixtures/ssl:ro
+      - ./test/fixtures/ssl:/etc/mysql/ssl:ro
 networks:
   app:
     driver: bridge
