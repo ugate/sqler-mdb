@@ -31,6 +31,20 @@ jobs:
           docker logs --details sqler_mdb || true
           docker logs --details sqler_mdb_dialect || true
 
+      - name: Inspect TLS certs inside containers
+        shell: bash
+        run: |
+          echo "=== MySQL container certs ==="
+          docker exec sqler_mdb sh -lc '
+            openssl x509 -in /etc/mysql/ssl/ca.pem -noout -subject -issuer
+            openssl x509 -in /etc/mysql/ssl/server-cert.pem -noout -subject -issuer
+          '
+          echo "=== Dialect container certs ==="
+          docker exec sqler_mdb_dialect sh -lc '
+            openssl x509 -in /home/node/app/test/fixtures/ssl/ca.pem -noout -subject -issuer
+            openssl x509 -in /home/node/app/test/fixtures/ssl/client-cert.pem -noout -subject -issuer
+          '
+
       - name: Run test suite in dialect container
         shell: bash
         run: |
