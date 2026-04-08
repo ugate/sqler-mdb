@@ -14,6 +14,7 @@ module.exports = function buildConf() {
 
   if (useTLS) {
     connection.ssl = {
+      // using mutual TLS (server/client, CA must be signed by same CA)
       ca: fs.readFileSync(path.join(sslBase, 'ca.pem'), 'utf8'),
       cert: fs.readFileSync(path.join(sslBase, 'client-cert.pem'), 'utf8'),
       key: fs.readFileSync(path.join(sslBase, 'client-key.pem'), 'utf8'),
