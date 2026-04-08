@@ -13,4 +13,4 @@ COPY . .
 RUN mkdir -p docs && \
     ls -al /home/node/app
 
-CMD ["npm", "run", "docs:preview", "--", "--host", "0.0.0.0", "--port", "80"]
+CMD ["npm", "run", "docs:preview", "--", "--host", "0.0.0.0", "--port", "4173"]
