@@ -31,7 +31,20 @@ jobs:
           docker logs --details sqler_mdb || true
           docker logs --details sqler_mdb_dialect || true
 
-      ### tell MySQL to accept X509 client certs for the user
+      ### need to wait until MySQL is healthy before altering user in next step
+      - name: Wait for MySQL healthcheck
+        shell: bash
+        run: |
+          for i in $(seq 1 80); do
+            status="$(docker inspect -f '{{.State.Health.Status}}' sqler_mdb)"
+            echo "sqler_mdb health: $status"
+            [ "$status" = "healthy" ] && exit 0
+            sleep 2
+          done
+          docker logs --details sqler_mdb || true
+          exit 1
+
+      ### tell MySQL to accept X509 client certs for the user (use "REQUIRE X509" for strict or "REQUIRE SSL" for any SSL)
       - name: Configure MySQL SSL user
         run: |
           docker exec sqler_mdb sh -lc '
