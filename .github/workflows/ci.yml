@@ -22,10 +22,13 @@ jobs:
       - name: Build test container
         run: docker compose build sqler_mdb_dialect
 
-      - name: Fix TLS file ownership and permissions
+      - name: Fix TLS file permissions
         run: |
-          chmod 600 test/fixtures/ssl/server-key.pem test/fixtures/ssl/client-key.pem
-          chmod 644 test/fixtures/ssl/ca.pem test/fixtures/ssl/server-cert.pem test/fixtures/ssl/client-cert.pem
+          chmod 644 test/fixtures/ssl/ca.pem
+          chmod 644 test/fixtures/ssl/server-cert.pem
+          chmod 644 test/fixtures/ssl/server-key.pem
+          chmod 644 test/fixtures/ssl/client-cert.pem
+          chmod 600 test/fixtures/ssl/client-key.pem
 
       - name: Start test stack
         run: docker compose up -d
@@ -50,14 +53,14 @@ jobs:
           exit 1
 
       ### tell MySQL to accept X509 client certs for the user (use "REQUIRE X509" for strict or "REQUIRE SSL" for any SSL)
-      - name: Configure MySQL SSL user
-        run: |
-          docker exec sqler_mdb sh -lc '
-            mysql -h127.0.0.1 -P3306 -uroot -p"$MYSQL_ROOT_PASSWORD" -e "
-              ALTER USER '\''root'\''@'\''%'\'' REQUIRE SSL;
-              FLUSH PRIVILEGES;
-            "
-          '
+      # - name: Configure MySQL SSL user
+      #   run: |
+      #     docker exec sqler_mdb sh -lc '
+      #       mysql -h127.0.0.1 -P3306 -uroot -p"$MYSQL_ROOT_PASSWORD" -e "
+      #         ALTER USER '\''root'\''@'\''%'\'' REQUIRE SSL;
+      #         FLUSH PRIVILEGES;
+      #       "
+      #     '
 
       - name: Run test suite in dialect container
         shell: bash
