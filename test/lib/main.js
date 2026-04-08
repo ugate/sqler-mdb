@@ -371,6 +371,7 @@ function getConf(overrides) {
         if (!overrides) return conf; // no need to continue since there are no more options that need to be set manually
       }
     }
+    // never override SSL details or connection failures will occur
     if (ssl) {
       conn.driverOptions = conn.driverOptions || {};
       conn.driverOptions.connection = conn.driverOptions.connection || {};

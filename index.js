@@ -608,7 +608,15 @@ function createWriteStream(dlt, sql, opts, meta, txo, rtn) {
       }
       if (opts.prepareStatement) {
         const pso = await prepared(dlt, sql, opts, meta, txo, rtn);
-        return await pso.batch(batch);
+        // https://dev.mysql.com/doc/refman/8.4/en/sql-prepared-statements.html
+        // SQL syntax for prepared statements does not support multi-statements (that is, multiple statements within a single string separated by ; characters)
+        // return await pso.batch(batch);
+        const rslts = new Array(batch.length);
+        let i = 0;
+        for (const binds of batch) {
+          rslts[i++] = await pso.exec(binds);
+        }
+        return rslts;
       }
       /** @type {DBDriver.Connection} */
       const conn = txo ? txo.conn : connProm ? await connProm : await (connProm = dlt.at.pool.getConnection());
