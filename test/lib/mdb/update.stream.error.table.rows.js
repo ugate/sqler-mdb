@@ -22,8 +22,8 @@ module.exports = async function runExample(manager, connName) {
   try {
     await explicitTransactionUpdate(manager, connName, rtn, table1Binds);
   } catch (err) {
-    if (err instanceof ExpectedError) throw err;
-    console.error('Failed to throw the expected error', err);
+    if (!(err instanceof ExpectedError)) console.error('Failed to throw the expected error', err);
+    throw err;
   }
 
   return rtn;
