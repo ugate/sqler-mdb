@@ -65,20 +65,11 @@ async function explicitTransactionUpdate(manager, connName, rtn, binds) {
       });
 
       writeStream.once('error', (err) => {
-        // If this is the error we intentionally injected on commit/rollback,
-        // wait for close so commit/rollback has definitely been observed.
-        if (injectedErr && err === injectedErr) return;
         done(reject, err);
       });
 
       writeStream.once('close', () => {
         if (injectedErr) return done(reject, injectedErr);
-        done(resolve);
-      });
-
-      // Fallback for implementations that may emit finish without close.
-      writeStream.once('finish', () => {
-        if (injectedErr) return;
         done(resolve);
       });
     });
@@ -90,7 +81,6 @@ async function explicitTransactionUpdate(manager, connName, rtn, binds) {
       ]);
     } catch (err) {
       try {
-        // rollback and release the connection
         await tx.rollback(true);
       } catch (rberr) {
         err.rollbackError = rberr;
