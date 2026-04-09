@@ -42,11 +42,10 @@ async function explicitTransactionUpdate(manager, connName, rtn, binds) {
   });
 
   for (let writeStream of rtn.txExpRslts.rows) {
-    let injectedErr;
-    let sawCommitOrRollback = false;
     let settled = false;
+    let sawTerminalTxEvent = false;
 
-    const afterStream = new Promise((resolve, reject) => {
+    const streamResult = new Promise((resolve, reject) => {
       const done = (fn, val) => {
         if (settled) return;
         settled = true;
@@ -54,26 +53,33 @@ async function explicitTransactionUpdate(manager, connName, rtn, binds) {
       };
 
       writeStream.once(typedefs.EVENT_STREAM_COMMIT, (txId) => {
-        sawCommitOrRollback = true;
-        injectedErr = new ExpectedError(`Testing transaction error for transaction: ${txId}`);
-        writeStream.destroy(injectedErr);
+        sawTerminalTxEvent = true;
+        done(reject, new ExpectedError(
+          `Testing transaction error for transaction: ${txId}`
+        ));
       });
 
       writeStream.once(typedefs.EVENT_STREAM_ROLLBACK, (txId) => {
-        sawCommitOrRollback = true;
-        injectedErr = new UnExpectedError(
+        sawTerminalTxEvent = true;
+        done(reject, new UnExpectedError(
           `Should not have rolled back transaction "${txId}" since it should have already been committed!`
-        );
-        writeStream.destroy(injectedErr);
+        ));
       });
 
       writeStream.once('error', (err) => {
         done(reject, err);
       });
 
+      writeStream.once('end', async () => {
+        try {
+          await tx.rollback(true);
+        } catch (rberr) {
+          return done(reject, rberr);
+        }
+      });
+
       writeStream.once('close', () => {
-        if (injectedErr) return done(reject, injectedErr);
-        if (!sawCommitOrRollback) {
+        if (!sawTerminalTxEvent) {
           return done(reject, new UnExpectedError(
             'Stream closed before commit/rollback event was observed'
           ));
@@ -82,19 +88,10 @@ async function explicitTransactionUpdate(manager, connName, rtn, binds) {
       });
     });
 
-    try {
-      await Promise.all([
-        pipeline(Stream.Readable.from([binds]), writeStream),
-        afterStream
-      ]);
-    } catch (err) {
-      try {
-        await tx.rollback(true);
-      } catch (rberr) {
-        err.rollbackError = rberr;
-      }
-      throw err;
-    }
+    await Promise.all([
+      pipeline(Stream.Readable.from([binds]), writeStream),
+      streamResult
+    ]);
   }
 }
 
