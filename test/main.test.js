@@ -49,7 +49,7 @@ test(plan, async (t) => {
   });
 
   await t.test('Driver Options No Pool/Connection', { timeout: TEST_TKO }, async () => {
-    await Tester.driverOptionsPoolConnNone();
+    await expectRejects(Tester.driverOptionsPoolConnNone, 'no pool/connection throw');
   });
 
   await t.test('Driver Options Pool or Connection', { timeout: TEST_TKO }, async () => {
