@@ -42,25 +42,59 @@ async function explicitTransactionUpdate(manager, connName, rtn, binds) {
   });
 
   for (let writeStream of rtn.txExpRslts.rows) {
-    let commitErr;
+    let injectedErr;
+    let settled = false;
 
-    writeStream.once(typedefs.EVENT_STREAM_COMMIT, (txId) => {
-      commitErr = new ExpectedError(`Testing transaction error for transaction: ${txId}`);
-      writeStream.destroy(commitErr);
-    });
+    const afterStream = new Promise((resolve, reject) => {
+      const done = (fn, val) => {
+        if (settled) return;
+        settled = true;
+        fn(val);
+      };
 
-    writeStream.once(typedefs.EVENT_STREAM_ROLLBACK, (txId) => {
-      writeStream.destroy(new UnExpectedError(`Should not have rolled back transaction "${txId}" since it should have already been committed!`));
+      writeStream.once(typedefs.EVENT_STREAM_COMMIT, (txId) => {
+        injectedErr = new ExpectedError(`Testing transaction error for transaction: ${txId}`);
+        writeStream.destroy(injectedErr);
+      });
+
+      writeStream.once(typedefs.EVENT_STREAM_ROLLBACK, (txId) => {
+        injectedErr = new UnExpectedError(
+          `Should not have rolled back transaction "${txId}" since it should have already been committed!`
+        );
+        writeStream.destroy(injectedErr);
+      });
+
+      writeStream.once('error', (err) => {
+        // If this is the error we intentionally injected on commit/rollback,
+        // wait for close so commit/rollback has definitely been observed.
+        if (injectedErr && err === injectedErr) return;
+        done(reject, err);
+      });
+
+      writeStream.once('close', () => {
+        if (injectedErr) return done(reject, injectedErr);
+        done(resolve);
+      });
+
+      // Fallback for implementations that may emit finish without close.
+      writeStream.once('finish', () => {
+        if (injectedErr) return;
+        done(resolve);
+      });
     });
 
     try {
-      await pipeline(
-        Stream.Readable.from([binds]),
-        writeStream
-      );
-      if (commitErr) throw commitErr;
+      await Promise.all([
+        pipeline(Stream.Readable.from([binds]), writeStream),
+        afterStream
+      ]);
     } catch (err) {
-      await tx.rollback(true);
+      try {
+        // rollback and release the connection
+        await tx.rollback(true);
+      } catch (rberr) {
+        err.rollbackError = rberr;
+      }
       throw err;
     }
   }
