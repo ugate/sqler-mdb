@@ -43,6 +43,7 @@ async function explicitTransactionUpdate(manager, connName, rtn, binds) {
 
   for (let writeStream of rtn.txExpRslts.rows) {
     let injectedErr;
+    let sawCommitOrRollback = false;
     let settled = false;
 
     const afterStream = new Promise((resolve, reject) => {
@@ -53,11 +54,13 @@ async function explicitTransactionUpdate(manager, connName, rtn, binds) {
       };
 
       writeStream.once(typedefs.EVENT_STREAM_COMMIT, (txId) => {
+        sawCommitOrRollback = true;
         injectedErr = new ExpectedError(`Testing transaction error for transaction: ${txId}`);
         writeStream.destroy(injectedErr);
       });
 
       writeStream.once(typedefs.EVENT_STREAM_ROLLBACK, (txId) => {
+        sawCommitOrRollback = true;
         injectedErr = new UnExpectedError(
           `Should not have rolled back transaction "${txId}" since it should have already been committed!`
         );
@@ -70,6 +73,11 @@ async function explicitTransactionUpdate(manager, connName, rtn, binds) {
 
       writeStream.once('close', () => {
         if (injectedErr) return done(reject, injectedErr);
+        if (!sawCommitOrRollback) {
+          return done(reject, new UnExpectedError(
+            'Stream closed before commit/rollback event was observed'
+          ));
+        }
         done(resolve);
       });
     });
