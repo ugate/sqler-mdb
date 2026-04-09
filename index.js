@@ -24,6 +24,7 @@ class MDBDialect {
    */
   constructor(priv, connConf, track, errorLogger, logger, debug) {
     if (!connConf.driverOptions) throw new Error('Connection configuration is missing required driverOptions');
+    if (!connConf.driverOptions.pool && !connConf.driverOptions.connection) throw new Error('Connection configuration requires driverOptions.pool or driverOptions.connection');
     const dlt = internal(this);
     dlt.at.track = track;
     dlt.at.driver = DBDriver;

@@ -42,25 +42,27 @@ async function explicitTransactionUpdate(manager, connName, rtn, binds) {
   });
 
   for (let writeStream of rtn.txExpRslts.rows) {
-    writeStream.on(typedefs.EVENT_STREAM_COMMIT, (txId) => {
-      throw new ExpectedError(`Testing transaction error for transaction: ${txId}`);
+    let commitErr;
+
+    writeStream.once(typedefs.EVENT_STREAM_COMMIT, (txId) => {
+      commitErr = new ExpectedError(`Testing transaction error for transaction: ${txId}`);
+      writeStream.destroy(commitErr);
     });
-    writeStream.on(typedefs.EVENT_STREAM_ROLLBACK, (txId) => {
-      throw new UnExpectedError(`Should not have rolled back transaction "${txId}" since it should have already been committed!`);
+
+    writeStream.once(typedefs.EVENT_STREAM_ROLLBACK, (txId) => {
+      writeStream.destroy(new UnExpectedError(`Should not have rolled back transaction "${txId}" since it should have already been committed!`));
     });
-    writeStream.on('error', async (err) => {
-      if (err instanceof ExpectedError) {
-        await Promise.reject(err);
-      }
-    });
-    writeStream.on('end', async () => {
-      // rollback and release the connection
+
+    try {
+      await pipeline(
+        Stream.Readable.from([binds]),
+        writeStream
+      );
+      if (commitErr) throw commitErr;
+    } catch (err) {
       await tx.rollback(true);
-    });
-    await pipeline(
-      Stream.Readable.from([binds]),
-      writeStream
-    );
+      throw err;
+    }
   }
 }
 
