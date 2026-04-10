@@ -51,21 +51,21 @@ Test code that illustrates how to use MariaDB/MySQL with various examples
 
 ## Update Rows {#update}
 
-> db/mdb/update.table.rows.sql
+Demo multiple table updated in a single SQL script:
 
-(demo multiple table updated in a single SQL script)
+> db/mdb/update.table.rows.sql
 
 <<< @/_test/db/mdb/update.table.rows.sql
 
-> db/mdb/update.table1.rows.sql
+Demo prepared statements:
 
-(demo prepared statements)
+> db/mdb/update.table1.rows.sql
 
 <<< @/_test/db/mdb/update.table1.rows.sql
 
-> db/mdb/update.table2.rows.sql
+Demo transactions:
 
-(demo transactions)
+> db/mdb/update.table2.rows.sql
 
 <<< @/_test/db/mdb/update.table2.rows.sql
 
@@ -79,19 +79,39 @@ Test code that illustrates how to use MariaDB/MySQL with various examples
 
 <<< @/_test/lib/mdb/delete.table.rows.js
 
-## Create Rows (streaming using the same SQL as the prior create rows example) {#create_stream}
+## Create Rows (streaming) {#create_stream}
+
+> db/mdb/create.stream.table.rows.sql
+
+<<< @/_test/db/mdb/create.stream.table.rows.sql
 
 <<< @/_test/lib/mdb/create.stream.table.rows.js
 
-## Read Rows (streaming using the same SQL as the prior read rows example) {#read_stream}
+## Read Rows (streaming) {#read_stream}
+
+> db/mdb/read.table.rows.sql
+
+<<< @/_test/db/mdb/read.table.rows.sql
 
 <<< @/_test/lib/mdb/read.stream.table.rows.js
 
-## Update Rows (streaming using the same SQL as the prior update rows example) {#update_stream}
+## Update Rows (streaming) {#update_stream}
+
+> db/mdb/update.table1.rows.sql
+
+<<< @/_test/db/mdb/update.table1.rows.sql
+
+> db/mdb/update.table2.rows.sql
+
+<<< @/_test/db/mdb/update.table2.rows.sql
 
 <<< @/_test/lib/mdb/update.stream.table.rows.js
 
-## Delete Rows (streaming using the same SQL as the prior delete rows example) {#delete_stream}
+## Delete Rows (streaming) {#delete_stream}
+
+> db/mdb/delete.stream.table.rows.sql
+
+<<< @/_test/db/mdb/delete.stream.table.rows.sql
 
 <<< @/_test/lib/mdb/delete.stream.table.rows.js
 

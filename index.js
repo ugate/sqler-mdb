@@ -6,6 +6,11 @@ const EventEmitter = require('events');
 const typedefs = require('sqler/typedefs');
 
 const MAX_MDB_NAME_LGTH = 64;
+const PROC_FRAGS = Object.freeze({
+  CREATE: 'create',
+  CALL: 'call',
+  DROP: 'drop'
+});
 
 /**
  * MariaDB + MySQL {@link Dialect} implementation for [`sqler`](https://ugate.github.io/sqler/)
@@ -74,7 +79,7 @@ class MDBDialect {
   /**
    * Initializes {@link MDBDialect} by creating the connection pool
    * @param {typedefs.SQLERInitOptions} opts The options described by the `sqler` module
-   * @returns {Object} The MariaDB/MySQL connection pool
+   * @returns {Promise<Object>} The MariaDB/MySQL connection pool
    */
   async init(opts) {
     const dlt = internal(this), numSql = opts.numOfPreparedFuncs;
@@ -111,7 +116,7 @@ class MDBDialect {
    * Begins a transaction by opening a connection from the pool
    * @param {String} txId The internally generated transaction identifier
    * @param {typedefs.SQLERTransactionOptions} opts The transaction options passed in via the public API
-   * @returns {typedefs.SQLERTransaction} The transaction that was started
+   * @returns {Promise<typedefs.SQLERTransaction>} The transaction that was started
    */
   async beginTransaction(txId) {
     const dlt = internal(this);
@@ -154,7 +159,7 @@ class MDBDialect {
    * @param {String[]} frags the frament keys within the SQL that will be retained
    * @param {typedefs.SQLERExecMeta} meta The SQL execution metadata
    * @param {(typedefs.SQLERExecErrorOptions | Boolean)} [errorOpts] The error options to use
-   * @returns {typedefs.SQLERExecResults} The execution results
+   * @returns {Promise<typedefs.SQLERExecResults>} The execution results
    */
   async exec(sql, opts, frags, meta, errorOpts) {
     /** @type {InternalFlightRecorder} */
@@ -375,7 +380,7 @@ function operation(dlt, name, reset, txoOrConn, opts, preop) {
  * @param {typedefs.SQLERExecMeta} meta The SQL execution metadata
  * @param {MDBTransactionObject} [txo] The transaction object to use. When not specified, a connection will be established.
  * @param {typedefs.SQLERExecResults} rtn The execution results used by the prepared statement where `unprepare` will be set
- * @returns {InternalPreparedStatement} The prepared statement
+ * @returns {Promise<InternalPreparedStatement>} The prepared statement
  */
 async function prepared(dlt, sql, opts, meta, txo, rtn) {
   let isPrepare;
@@ -556,7 +561,7 @@ function statusLabel(dlt, opts, txo) {
  * @param {MDBTransactionObject} [txo] The transaction object to use. When not specified, a connection will be established on the first write to the stream.
  * @param {typedefs.SQLERExecResults} rtn Where the _public_ prepared statement functions will be set (ignored when the read stream is not for a prepared
  * statement).
- * @returns {Stream.Readable} The created read stream
+ * @returns {Promise<Stream.Readable>} The created read stream
  */
 async function createReadStream(dlt, sql, opts, meta, txo, rtn) {
   /** @type {Promise<DBDriver.Connection>} */
@@ -609,7 +614,7 @@ function createWriteStream(dlt, sql, opts, meta, txo, rtn) {
       }
       if (opts.prepareStatement) {
         const pso = await prepared(dlt, sql, opts, meta, txo, rtn);
-        // https://dev.mysql.com/doc/refman/8.4/en/sql-prepared-statements.html
+        // https://dev.mysql.com/doc/refman/en/sql-prepared-statements.html
         // SQL syntax for prepared statements does not support multi-statements (that is, multiple statements within a single string separated by ; characters)
         // return await pso.batch(batch);
         const rslts = new Array(batch.length);
@@ -727,7 +732,7 @@ function errored(label, dlt, meta, error) {
  * @param {Function} [func] An `async function()` that will be invoked in a catch wrapper that will be consumed and recorded when a flight recorder is
  * provided
  * @param {String} [funcErrorProperty=releaseError] A property name on the flight recorder error that will be set when the `func` itself errors
- * @returns {InternalFlightRecorder} The recorded error
+ * @returns {Promise<InternalFlightRecorder>} The recorded error
  */
 async function finalize(recorder, dlt, func, funcErrorProperty = 'releaseError') {
   // transactions/prepared statements need the connection to remain open until commit/rollback/unprepare
@@ -906,8 +911,4 @@ let internal = function(dialect) {
  * @property {Error} [error] An errored that occurred
  * @property {DBDriver.Connection} [conn] A connection that will be `released` when an error exists
  * @private
- */
-
-/**
- * @import { typedefs } from 'sqler'
  */

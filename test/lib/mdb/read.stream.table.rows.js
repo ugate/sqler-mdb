@@ -1,16 +1,17 @@
 'use strict';
 
-const typedefs = require('sqler/typedefs');
 const Os = require('os');
 const Fs = require('fs');
 const Stream = require('stream');
-// node >= v16 :
-// const { pipeline } = require('stream/promises');
-// node < 16 :
-const Util = require('util');
-const pipeline = Util.promisify(Stream.pipeline);
+const { pipeline } = require('stream/promises');
 
-// export just to illustrate module usage
+/**
+ * Example using streams
+ * export just to illustrate module usage
+ * @param {Manager} manager sqler manager
+ * @param {String} connName The connection name to use 
+ * @returns {Promise<typedefs.SQLERExecResults>}
+ */
 module.exports = async function runExample(manager, connName) {
 
   // read from multiple tables
@@ -61,3 +62,7 @@ module.exports = async function runExample(manager, connName) {
 
   return rslt;
 };
+
+/**
+ * @import { Manager, typedefs } from 'sqler'
+ */

@@ -1,14 +1,15 @@
 'use strict';
 
-const typedefs = require('sqler/typedefs');
 const Stream = require('stream');
-// node >= v16 :
-// const { pipeline } = require('stream/promises');
-// node < 16 :
-const Util = require('util');
-const pipeline = Util.promisify(Stream.pipeline);
+const { pipeline } = require('stream/promises');
 
-// export just to illustrate module usage
+/**
+ * Example using streams
+ * export just to illustrate module usage
+ * @param {Manager} manager sqler manager
+ * @param {String} connName The connection name to use 
+ * @returns {Promise<typedefs.SQLERExecResults>}
+ */
 module.exports = async function runExample(manager, connName) {
 
   const date = new Date();
@@ -30,6 +31,7 @@ module.exports = async function runExample(manager, connName) {
       id2: 200, name2: '', updated2: date
     }
   ];
+  /** @type {typedefs.SQLERExecResults} */
   const rtn = {};
 
   //-------------------------------------------------------
@@ -52,6 +54,14 @@ module.exports = async function runExample(manager, connName) {
   return rtn;
 };
 
+/**
+ * implicitTransactionUpdate
+ * @param {Manager} manager sqler manager
+ * @param {String} connName The connection name to use 
+ * @param {typedefs.SQLERExecResults} rtn Returned results
+ * @param {Object[]} table1BindsArray 1st table binds
+ * @param {Object[]} table2BindsArray 2nd table binds
+ */
 async function implicitTransactionUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
   // simply rename all the bind names to reflect the action being performed
   nameAll('UPDATE_STREAM', 'Implicit transaction', table1BindsArray, table2BindsArray);
@@ -85,6 +95,14 @@ async function implicitTransactionUpdate(manager, connName, rtn, table1BindsArra
   }
 }
 
+/**
+ * explicitTransactionUpdate
+ * @param {Manager} manager sqler manager
+ * @param {String} connName The connection name to use 
+ * @param {typedefs.SQLERExecResults} rtn Returned results
+ * @param {Object[]} table1BindsArray 1st table binds
+ * @param {Object[]} table2BindsArray 2nd table binds
+ */
 async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
   // start a transaction
   /** @type {typedefs.SQLERTransaction} */
@@ -134,6 +152,14 @@ async function explicitTransactionUpdate(manager, connName, rtn, table1BindsArra
   }
 }
 
+/**
+ * preparedStatementUpdate
+ * @param {Manager} manager sqler manager
+ * @param {String} connName The connection name to use 
+ * @param {typedefs.SQLERExecResults} rtn Returned results
+ * @param {Object[]} table1BindsArray 1st table binds
+ * @param {Object[]} table2BindsArray 2nd table binds
+ */
 async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
   // need to keep track of at least one result for each table so that unprepare can be called on each
   // (could call unprepare using any of the returned stream results for each table)
@@ -200,6 +226,14 @@ async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray,
   }
 }
 
+/**
+ * preparedStatementExplicitTxUpdate
+ * @param {Manager} manager sqler manager
+ * @param {String} connName The connection name to use 
+ * @param {typedefs.SQLERExecResults} rtn Returned results
+ * @param {Object[]} table1BindsArray 1st table binds
+ * @param {Object[]} table2BindsArray 2nd table binds
+ */
 async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1BindsArray, table2BindsArray) {
   /** @type {typedefs.SQLERTransaction} */
   let tx;
@@ -261,7 +295,14 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
   }
 }
 
-// just a utility function to iterate over muliple bind arrays and rename them
+/**
+ * Just a utility function to iterate over muliple bind name arrays to rename them
+ * @param {String} name Name of the bind that will be renamed
+ * @param {String} label Label to be used on the value
+ * @param {Object[]} table1BindsArray 1st table binds
+ * @param {Object[]} table2BindsArray 2nd table binds
+ * @returns {String[]} Names
+ */
 function nameAll(name, label, table1BindsArray, table2BindsArray) {
   const ln = table1BindsArray.length + (table2BindsArray ? table2BindsArray.length : 0);
   for (let i = 0, ti, ri, barr; i < ln; i++) {
@@ -280,3 +321,7 @@ function nameAll(name, label, table1BindsArray, table2BindsArray) {
   }
   return [ 'name', 'name2' ];
 }
+
+/**
+ * @import { Manager, typedefs } from 'sqler'
+ */
