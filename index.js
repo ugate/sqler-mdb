@@ -7,11 +7,6 @@ const crypto = require('crypto');
 const typedefs = require('sqler/typedefs');
 
 const MAX_MDB_NAME_LGTH = 64;
-const PROC_FRAGS = Object.freeze({
-  CREATE: 'create',
-  CALL: 'call',
-  DROP: 'drop'
-});
 
 /**
  * MariaDB + MySQL {@link Dialect} implementation for [`sqler`](https://ugate.github.io/sqler/)
@@ -742,7 +737,7 @@ function errored(label, dlt, frags, meta, error) {
     dlt.at.errorLogger(label, error);
   }
   error.sqlerMDB = {};
-  if (meta && dlt.at.stmts.has(mlogicalKey)) {
+  if (meta && dlt.at.stmts.has(logicalKey)) {
     const pso = dlt.at.stmts.get(logicalKey);
     error.sqlerMDB.preparedStmtName = pso.name;
     error.sqlerMDB.preparedStmtProc = pso.psql;
