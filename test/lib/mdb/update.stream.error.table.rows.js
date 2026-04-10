@@ -1,5 +1,6 @@
 'use strict';
 
+const typedefs = require('sqler/typedefs');
 const Stream = require('stream');
 const { pipeline } = require('stream/promises');
 
@@ -18,6 +19,7 @@ module.exports = async function runExample(manager, connName) {
   const table1Binds = {
     id: 400, name: 'Error test after commit', updated: date
   };
+  /** @typedef {typedefs.SQLERExecResults} */
   const rtn = {};
 
   try {
@@ -111,5 +113,5 @@ class UnExpectedError extends Error {
 }
 
 /**
- * @import { Manager, typedefs } from 'sqler'
+ * @import { Manager } from 'sqler'
  */

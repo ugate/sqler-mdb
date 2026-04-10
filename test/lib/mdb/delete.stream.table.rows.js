@@ -24,9 +24,8 @@ module.exports = async function runExample(manager, connName) {
     // We can do this using sqler fragments defined in the SQL file
     await manager.db[connName].delete.stream.table.rows({
       autoCommit: false,
-      transactionId: tx.id,
-      frags: ['createStoredProcedure']
-    });
+      transactionId: tx.id
+    }, ['createStoredProcedure']);
 
     // Delete rows into multiple tables within a single execution
     rslts = await manager.db[connName].delete.stream.table.rows({
@@ -37,8 +36,7 @@ module.exports = async function runExample(manager, connName) {
       // no need to set execOpts.binds since they will be streamed from the create instead
       autoCommit: false,
       transactionId: tx.id,
-      frags: ['callStoredProcedure'],
-    });
+    }, ['callStoredProcedure']);
 
     for (let writeStream of rslts.rows) {
       await pipeline(
@@ -60,9 +58,8 @@ module.exports = async function runExample(manager, connName) {
     // drop the stored procedure (done here for brevity, in reality we'd want to ensure it's dropped if creation was successful)
     await manager.db[connName].delete.stream.table.rows({
       autoCommit: false,
-      transactionId: tx.id,
-      frags: ['dropStoredProcedure']
-    });
+      transactionId: tx.id
+    }, ['dropStoredProcedure']);
 
     await tx.commit(true);
   } catch (err) {
