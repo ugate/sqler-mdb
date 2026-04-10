@@ -732,12 +732,12 @@ function closeStreamHandler(dlt, sql, opts, frags, meta, txo, getConn, stream, r
  * @returns {InternalFlightRecorder} The flight recorder
  */
 function errored(label, dlt, frags, meta, error) {
-  const { logicalKey, sqlName } = meta ? sqlSafeName('ps', meta.name, frags || null) : {};
+  const { logicalKey } = meta ? sqlSafeName('ps', meta.name, frags || null) : {};
   if (dlt.at.errorLogger) {
     dlt.at.errorLogger(label, error);
   }
   error.sqlerMDB = {};
-  if (meta && dlt.at.stmts.has(logicalKey)) {
+  if (logicalKey && dlt.at.stmts.has(logicalKey)) {
     const pso = dlt.at.stmts.get(logicalKey);
     error.sqlerMDB.preparedStmtName = pso.name;
     error.sqlerMDB.preparedStmtProc = pso.psql;

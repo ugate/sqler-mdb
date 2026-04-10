@@ -120,11 +120,7 @@ async function preparedStatementUpdate(manager, connName, rtn, table1BindsArray,
         // the pool just before the first SQL executes
         prepareStatement: true,
         driverOptions: {
-          // prepared statements in MySQL/MariaDB use a temporary
-          // stored procedure to execute prepared statements...
-          // in order to do so, the stored procedure needs to have
-          // a database scope defined where it will reside
-          preparedStatementDatabase: 'sqlermysql'
+          // override any driver options here
         },
         // include the bind parameters
         binds
@@ -169,11 +165,7 @@ async function preparedStatementExplicitTxUpdate(manager, connName, rtn, table1B
         transactionId: tx.id, // ensure execution takes place within transaction
         prepareStatement: true, // ensure a prepared statement is used
         driverOptions: {
-          // prepared statements in MySQL/MariaDB use a temporary
-          // stored procedure to execute prepared statements...
-          // in order to do so, the stored procedure needs to have
-          // a database scope defined where it will reside
-          preparedStatementDatabase: 'sqlermysql'
+          // override any driver options here
         },
         // include the bind parameters
         binds

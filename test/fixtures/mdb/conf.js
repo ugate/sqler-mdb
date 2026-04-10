@@ -42,7 +42,13 @@ module.exports = function buildConf() {
           dialect: 'mdb',
           pool: {},
           driverOptions: {
-            connection
+            connection,
+            // prepared statements in MySQL/MariaDB use a temporary
+            // stored procedure to execute prepared statements...
+            // in order to do so, the stored procedure needs to have
+            // a database scope defined where it will reside
+            // (can also be overridden in the prepared function exec)
+            preparedStatementDatabase: 'sqlermysql'
           }
         }
       ]
